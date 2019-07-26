@@ -18,7 +18,7 @@ module.exports = function *() {
       yield thunkify(certMgr.generateRootCA)();
       yield certMgr.trustRootCA();
     } else {
-      const isCATrusted = yield thunkify(certMgr.ifRootCATrusted)();
+      const isCATrusted = yield thunkify(certMgr.ifRootCATrusted)();      
       if (!isCATrusted) {
         console.log('ROOT CA NOT INSTALLED YET');
         yield certMgr.trustRootCA();

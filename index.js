@@ -45,7 +45,7 @@ function setProxyConfig(enable, done = function() {}) {
 function startServer() {
   const options = {
     port: 8001,
-    rule: require('./rules'),
+    rule: require('./rule'),
     webInterface: {
       enable: true,
       webPort: 8002
@@ -63,7 +63,7 @@ function startServer() {
 
 co(function *() {
   const caStatus = yield AnyProxy.utils.certMgr.getCAStatus();
-
+  
   if(caStatus.exist && caStatus.trusted) {
     startServer();
   } else {
