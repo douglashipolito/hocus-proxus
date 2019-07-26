@@ -1,0 +1,19 @@
+{
+  "name": "occ-tools-proxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "anyproxy": "^4.1.0",
+    "async-exit-hook": "^2.0.1",
+    "cheerio": "^1.0.0-rc.3",
+    "co": "^4.6.0",
+    "lan-settings": "^1.0.0-beta4",
+    "thunkify": "^2.1.2"
+  }
+}
