@@ -15,6 +15,7 @@
     "co": "^4.6.0",
     "jsesc": "^2.5.2",
     "lan-settings": "^1.0.0-beta4",
+    "lodash": "^4.17.15",
     "require-all": "^3.0.0",
     "thunkify": "^2.1.2"
   }

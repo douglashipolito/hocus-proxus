@@ -1,26 +1,59 @@
 const cheerio = require('cheerio');
 const jsesc = require('jsesc');
+const _ = require('lodash');
 var rules = require('require-all')({
   dirname     :  __dirname + '/rules',
   recursive   : false
 });
 
-const beforeSendRequestRules = [];
+const beforeSendRequest = [];
 const beforeSendResponse = [];
 
 for(rule in rules) {
-  if(rules[rule].beforeSendRequest) {
-    beforeSendRequestRules.push(rules[rule].beforeSendRequest);
+  if(rules[rule].type === 'beforeSendRequest') {
+    beforeSendRequest.push(rules[rule]);
   }
 
-  if(rules[rule].beforeSendResponse) {
-    beforeSendResponse.push(rules[rule].beforeSendResponse);
+  if(rules[rule].type === 'beforeSendResponse') {
+    beforeSendResponse.push(rules[rule]);
   }
+}
+
+function* processRules(type, globalResponse = {}, requestDetail, responseDetail) {
+  const types = {
+    beforeSendRequest,
+    beforeSendResponse
+  };
+  
+  let foundRule = null;
+
+  if(types[type]) {
+    types[type].some(rule => {
+      if(rule.check(requestDetail, responseDetail)) {
+        foundRule = rule;
+        return true;
+      }
+    });
+  }
+
+  if(foundRule) {
+    let resolveData = {};
+    
+    try {
+      resolveData = yield foundRule.resolve(requestDetail, responseDetail);
+    } catch(error) {
+      return error;
+    }
+
+    return _.defaultsDeep(resolveData, globalResponse);
+  }
+
+  return globalResponse;
 }
 
 module.exports = {
   *beforeSendRequest(requestDetail) {
-    
+    // return processRules('beforeSendRequest', {}, requestDetail);
   },
   *beforeSendResponse(requestDetail, responseDetail) {
     const newResponse = Object.assign({}, responseDetail.response);    
@@ -32,8 +65,6 @@ module.exports = {
       newResponse.header['Set-Cookie'] = setCookiesHeader.map(cookie => jsesc(cookie));
     }
 
-    return {
-      response: newResponse
-    };
+    return yield processRules('beforeSendResponse', { response: newResponse }, requestDetail, responseDetail);
   }
 };
