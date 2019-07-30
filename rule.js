@@ -1,5 +1,3 @@
-const cheerio = require('cheerio');
-const jsesc = require('jsesc');
 const _ = require('lodash');
 var rules = require('require-all')({
   dirname     :  __dirname + '/rules',
@@ -10,26 +8,34 @@ const beforeSendRequest = [];
 const beforeSendResponse = [];
 
 for(rule in rules) {
-  if(rules[rule].type === 'beforeSendRequest') {
-    beforeSendRequest.push(rules[rule]);
+  if(rules[rule].beforeSendRequest) {
+    beforeSendRequest.push(rules[rule].beforeSendRequest);
   }
 
-  if(rules[rule].type === 'beforeSendResponse') {
-    beforeSendResponse.push(rules[rule]);
+  if(rules[rule].beforeSendResponse) {
+    beforeSendResponse.push(rules[rule].beforeSendResponse);
   }
 }
 
-function* processRules(type, globalResponse = {}, requestDetail, responseDetail) {
+async function processRules(type, requestDetail, responseDetail) {
   const types = {
     beforeSendRequest,
     beforeSendResponse
   };
-  
+  let globalResponse = {};
   let foundRule = null;
 
   if(types[type]) {
-    types[type].some(rule => {
-      if(rule.check(requestDetail, responseDetail)) {
+    const globalRulesData = types[type].filter(rule => rule.global).map(rule => {
+      return new Promise(async function(resolve) {
+        _.defaultsDeep(globalResponse, await rule.resolve({requestDetail, responseDetail}));
+        resolve();
+      });
+    });
+    await Promise.all(globalRulesData);
+
+    types[type].filter(rule => !rule.global).some(rule => {
+      if(rule.check({requestDetail, responseDetail})) {
         foundRule = rule;
         return true;
       }
@@ -40,11 +46,11 @@ function* processRules(type, globalResponse = {}, requestDetail, responseDetail)
     let resolveData = {};
     
     try {
-      resolveData = yield foundRule.resolve(requestDetail, responseDetail);
+      resolveData = await foundRule.resolve({requestDetail, responseDetail});
     } catch(error) {
       return error;
     }
-
+    
     return _.defaultsDeep(resolveData, globalResponse);
   }
 
@@ -52,19 +58,10 @@ function* processRules(type, globalResponse = {}, requestDetail, responseDetail)
 }
 
 module.exports = {
-  *beforeSendRequest(requestDetail) {
-    // return processRules('beforeSendRequest', {}, requestDetail);
+  async beforeSendRequest(requestDetail) {
+    return await processRules('beforeSendRequest', requestDetail);
   },
-  *beforeSendResponse(requestDetail, responseDetail) {
-    const newResponse = Object.assign({}, responseDetail.response);    
-    const setCookiesHeader = newResponse.header['Set-Cookie'];
-
-    // Encodes any unicode character
-    // This comes from Incapsula
-    if(setCookiesHeader && Array.isArray(setCookiesHeader)) {
-      newResponse.header['Set-Cookie'] = setCookiesHeader.map(cookie => jsesc(cookie));
-    }
-
-    return yield processRules('beforeSendResponse', { response: newResponse }, requestDetail, responseDetail);
+  async beforeSendResponse(requestDetail, responseDetail) {
+    return await processRules('beforeSendResponse', requestDetail, responseDetail);
   }
 };

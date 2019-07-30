@@ -1,11 +1,10 @@
 const cheerio = require('cheerio');
 
-module.exports = {
-  type: 'beforeSendResponse',
-  check(requestDetail, responseDetail) {
+exports.beforeSendResponse = {
+  check({ responseDetail }) {
     return /text\/html/.test(responseDetail.response.header['Content-Type'])
   },
-  *resolve(requestDetail, responseDetail) {
+  async resolve({ responseDetail }) {
     const newResponse = {};
     const body = responseDetail.response.body.toString();
     const $ = cheerio.load(body, { decodeEntities: false });
