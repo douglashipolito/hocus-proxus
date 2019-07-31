@@ -1,8 +1,8 @@
 const cheerio = require('cheerio');
 
 exports.beforeSendResponse = {
-  check({ responseDetail }) {
-    return /text\/html/.test(responseDetail.response.header['Content-Type'])
+  async shouldResolve({ responseDetail }) {
+    return /text\/html/.test(responseDetail.response.header['Content-Type']);
   },
   async resolve({ responseDetail }) {
     const newResponse = {};

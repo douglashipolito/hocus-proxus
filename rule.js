@@ -1,19 +1,31 @@
 const _ = require('lodash');
 var rules = require('require-all')({
-  dirname     :  __dirname + '/rules',
+  dirname     :  `${__dirname}/rules`,
   recursive   : false
 });
 
 const beforeSendRequest = [];
 const beforeSendResponse = [];
 
-for(rule in rules) {
-  if(rules[rule].beforeSendRequest) {
-    beforeSendRequest.push(rules[rule].beforeSendRequest);
+for(ruleKey in rules) {
+  const rule = rules[ruleKey];
+  if(rule.modules && Array.isArray(rule.modules)) {
+    rule.modules.forEach((ruleModule, index) => {
+      rules[`${ruleKey}-module-${index}`] = ruleModule;
+    });
+    delete rules[ruleKey];
+  }
+}
+
+for(ruleKey in rules) {
+  const rule = rules[ruleKey];
+
+  if(rule.beforeSendRequest) {
+    beforeSendRequest.push(rule.beforeSendRequest);
   }
 
-  if(rules[rule].beforeSendResponse) {
-    beforeSendResponse.push(rules[rule].beforeSendResponse);
+  if(rule.beforeSendResponse) {
+    beforeSendResponse.push(rule.beforeSendResponse);
   }
 }
 
@@ -23,33 +35,45 @@ async function processRules(type, requestDetail, responseDetail) {
     beforeSendResponse
   };
   let globalResponse = {};
-  let foundRule = null;
+  let foundRules = [];
 
   if(types[type]) {
-    const globalRulesData = types[type].filter(rule => rule.global).map(rule => {
-      return new Promise(async function(resolve) {
-        _.defaultsDeep(globalResponse, await rule.resolve({requestDetail, responseDetail}));
-        resolve();
-      });
-    });
-    await Promise.all(globalRulesData);
-
-    types[type].filter(rule => !rule.global).some(rule => {
-      if(rule.check({requestDetail, responseDetail})) {
-        foundRule = rule;
-        return true;
+    await Promise.all(types[type].filter(rule => rule.global).map(rule => {
+        return new Promise(async resolve => {
+          _.defaultsDeep(globalResponse, await rule.resolve({requestDetail, responseDetail}));
+          resolve();
+        });
       }
-    });
+    ));
+
+    foundRules = await Promise.all(types[type].filter(rule => !rule.global).map(rule => {
+        return new Promise(async resolve => {
+          const shouldResolve = await rule.shouldResolve({requestDetail, responseDetail});
+          
+          if(shouldResolve) {
+            return resolve(rule);
+          }
+
+          resolve();
+        });
+      }
+    ));
   }
 
-  if(foundRule) {
+  if(foundRules.length) {
     let resolveData = {};
-    
-    try {
-      resolveData = await foundRule.resolve({requestDetail, responseDetail});
-    } catch(error) {
-      return error;
-    }
+
+    await Promise.all(foundRules.filter(rule => !!rule).map(async rule => {
+      let ruleData = {};
+
+      try {
+        ruleData = await rule.resolve({requestDetail, responseDetail});
+      } catch(error) {
+        throw new Error(error);
+      }
+
+      _.defaultsDeep(resolveData, ruleData);
+    }));
     
     return _.defaultsDeep(resolveData, globalResponse);
   }

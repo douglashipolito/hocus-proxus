@@ -5,7 +5,7 @@ const internalIp = require('internal-ip');
 const rootCACheck = require('./rootCACheck');
 const lan = require('lan-settings');
 const exitHook = require('async-exit-hook');
-const config = require('./config');
+const config = require('./config.json');
 
 co(function *() {
   const internalV4Ip = yield internalIp.v4();
@@ -42,7 +42,7 @@ co(function *() {
           }
           
           data = data.replace(/#PROXY/g, `${internalV4Ip}:${config.proxyPort}`);
-          data = data.replace(/#DOMAIN/g, `shop-stage.motorolasolutions.com`);
+          data = data.replace(/#DOMAIN/g, config.domain);
           res.end(data);
         });
       });
@@ -89,3 +89,12 @@ co(function *() {
     });
   });
 });
+
+process
+  .on('unhandledRejection', (reason, p) => {
+    console.error(reason, 'Unhandled Rejection at Promise', p);
+  })
+  .on('uncaughtException', err => {
+    console.error(err, 'Uncaught Exception thrown');
+    process.exit(1);
+  });
