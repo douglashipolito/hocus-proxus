@@ -1,1 +1,1 @@
-module.exports = require('./occ/index');
+module.exports = require("./occ/index");
