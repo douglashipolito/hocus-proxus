@@ -1,5 +1,7 @@
-exports.modules = [
-  require('./modules/widget'),
-  require('./modules/theme'),
-  require('./modules/app-level')
-]
+exports.preprocessors = [require("./transpiler")];
+
+exports.routes = [
+  require("./routes/widget"),
+  require("./routes/theme"),
+  require("./routes/app-level")
+];

@@ -6,12 +6,21 @@ var rules = require("require-all")({
 
 const beforeSendRequest = [];
 const beforeSendResponse = [];
+const preprocessors = [];
 
 for (ruleKey in rules) {
   const rule = rules[ruleKey];
-  if (rule.modules && Array.isArray(rule.modules)) {
-    rule.modules.forEach((ruleModule, index) => {
-      rules[`${ruleKey}-module-${index}`] = ruleModule;
+
+  if (rule.preprocessors && Array.isArray(rule.preprocessors)) {
+    rule.preprocessors.forEach((ruleModule, index) => {
+      rules[`${ruleKey}-preprocessor-${index}`] = ruleModule;
+    });
+    delete rules[ruleKey];
+  }
+
+  if (rule.routes && Array.isArray(rule.routes)) {
+    rule.routes.forEach((ruleModule, index) => {
+      rules[`${ruleKey}-routes-${index}`] = ruleModule;
     });
     delete rules[ruleKey];
   }
@@ -19,6 +28,10 @@ for (ruleKey in rules) {
 
 for (ruleKey in rules) {
   const rule = rules[ruleKey];
+
+  if (rule.preprocessors) {
+    preprocessors.push(rule.preprocessors);
+  }
 
   if (rule.beforeSendRequest) {
     beforeSendRequest.push(rule.beforeSendRequest);
@@ -31,6 +44,7 @@ for (ruleKey in rules) {
 
 async function processRules(type, requestDetail, responseDetail) {
   const types = {
+    preprocessors,
     beforeSendRequest,
     beforeSendResponse
   };
@@ -98,6 +112,9 @@ async function processRules(type, requestDetail, responseDetail) {
 }
 
 module.exports = {
+  async preprocessors() {
+    return await processRules("preprocessors", {});
+  },
   async beforeSendRequest(requestDetail) {
     return await processRules("beforeSendRequest", requestDetail);
   },

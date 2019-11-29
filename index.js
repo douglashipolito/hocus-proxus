@@ -1,4 +1,9 @@
+process.binding(
+  "http_parser"
+).HTTPParser = require("http-parser-js").HTTPParser;
+
 const co = require("co");
+const path = require("path");
 const AnyProxy = require("anyproxy");
 const fs = require("fs");
 const internalIp = require("internal-ip");
@@ -6,15 +11,14 @@ const rootCACheck = require("./rootCACheck");
 const lan = require("lan-settings");
 const exitHook = require("async-exit-hook");
 const config = require("./config.json");
+const rule = require("./rule");
 
 co(function*() {
   const internalV4Ip = yield internalIp.v4();
   let proxyServer;
 
   function setProxyConfig(enable, done = function() {}) {
-    const proxyPacFile = `http://${internalV4Ip}:${
-      config.webinterfacePort
-    }/proxy.pac`;
+    const proxyPacFile = `http://${internalV4Ip}:${config.webinterfacePort}/proxy.pac`;
 
     lan
       .setSettings({
@@ -38,24 +42,42 @@ co(function*() {
       proxyServer.webServerInstance.app.get("/proxy.pac", (req, res) => {
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Content-type", "text/plain");
-        fs.readFile("proxy.pac", { encoding: "utf8" }, (error, data) => {
-          if (error) {
-            console.log(error);
-            return res.end("Error on requesting proxy pac");
-          }
+        fs.readFile(
+          path.join(__dirname, "proxy.pac"),
+          { encoding: "utf8" },
+          (error, data) => {
+            if (error) {
+              console.log(error);
+              return res.end("Error on requesting proxy pac");
+            }
 
-          data = data.replace(/#PROXY/g, `${internalV4Ip}:${config.proxyPort}`);
-          data = data.replace(/#DOMAIN/g, config.domain);
-          res.end(data);
-        });
+            data = data.replace(
+              /#PROXY/g,
+              `${internalV4Ip}:${config.proxyPort}`
+            );
+            data = data.replace(/#DOMAIN/g, config.domain);
+            res.end(data);
+          }
+        );
       });
     }
+  }
+
+  function stopServer(proxyServer) {
+    exitHook(callback => {
+      console.log("disabling proxy auto config");
+      setProxyConfig(false, () => {
+        console.log("pausing server...");
+        proxyServer.close();
+        setTimeout(callback, 200);
+      });
+    });
   }
 
   function startServer() {
     const options = {
       port: config.proxyPort,
-      rule: require("./rule"),
+      rule,
       webInterface: {
         enable: true,
         webPort: config.webinterfacePort
@@ -76,25 +98,28 @@ co(function*() {
   }
 
   const caStatus = yield AnyProxy.utils.certMgr.getCAStatus();
-  if (caStatus.exist && caStatus.trusted) {
-    startServer();
-  } else {
-    try {
-      yield rootCACheck();
-      startServer();
-    } catch (e) {
-      console.error(e);
-    }
-  }
+  rule
+    .preprocessors()
+    .then(() => {
+      co(function*() {
+        if (caStatus.exist && caStatus.trusted) {
+          startServer();
+        } else {
+          try {
+            yield rootCACheck();
+            startServer();
+          } catch (e) {
+            console.error(e);
+          }
+        }
 
-  exitHook(callback => {
-    console.log("disabling proxy auto config");
-    setProxyConfig(false, () => {
-      console.log("pausing server...");
-      proxyServer.close();
-      setTimeout(callback, 200);
+        stopServer(proxyServer);
+      });
+    })
+    .catch(error => {
+      console.log(error);
+      process.exit(0);
     });
-  });
 });
 
 process
@@ -105,3 +130,5 @@ process
     console.error(err, "Uncaught Exception thrown");
     process.exit(1);
   });
+
+process.stdin.resume();

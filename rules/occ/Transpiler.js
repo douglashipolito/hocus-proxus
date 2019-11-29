@@ -1,15 +1,11 @@
 const path = require("path");
 const fs = require("fs-extra");
-const Files = require("./Files");
+const Files = require("./helpers/Files");
 const rollup = require("rollup");
 const babel = require("rollup-plugin-babel");
 const nodeResolve = require("rollup-plugin-node-resolve");
 const multiInput = require("rollup-plugin-multi-input").default;
 const progress = require("rollup-plugin-progress");
-
-// const uglify = require("rollup-plugin-uglify");
-// const replace = require("rollup-plugin-replace");
-// const livereload = require("rollup-plugin-livereload");
 
 /**
  * Create the index file containing the app level
@@ -66,18 +62,14 @@ class Transpiler {
 
   js() {
     return new Promise(async (resolve, reject) => {
-      let files,
-        widgetsFiles,
-        appLevelFiles,
-        appLevelIndexTemplate,
-        appLevelEntries = {};
+      let files, widgetsFiles, appLevelFiles, appLevelIndexTemplate;
 
       try {
         files = await new Files();
         widgetsFiles = await files.findFiles(["widgets"], ["js"]);
         appLevelFiles = await files.findFiles(["app-level"], ["js"]);
         appLevelIndexTemplate = await fs.readFile(
-          path.join(__dirname, "modules", "app-level-index.js"),
+          path.join(__dirname, "templates", "app-level-index.js"),
           "utf8"
         );
       } catch (error) {
@@ -172,9 +164,14 @@ class Transpiler {
           );
         },
         onwarn(warning, warn) {
-          if (warning.code === "UNUSED_EXTERNAL_IMPORT") {
-            return;
-          }
+          // skip certain warnings
+          if (warning.code === "UNUSED_EXTERNAL_IMPORT") return;
+
+          // throw on others
+          if (warning.code === "NON_EXISTENT_EXPORT")
+            throw new Error(warning.message);
+
+          // Use default for everything else
           warn(warning);
         },
         plugins: [
@@ -185,8 +182,19 @@ class Transpiler {
           babel({
             exclude: "node_modules/**",
             plugins: [
-              ["@babel/plugin-proposal-decorators", { legacy: true }],
-              "@babel/plugin-proposal-class-properties"
+              [
+                path.join(
+                  __dirname,
+                  "node_modules",
+                  "@babel/plugin-proposal-decorators"
+                ),
+                { legacy: true }
+              ],
+              path.join(
+                __dirname,
+                "node_modules",
+                "@babel/plugin-proposal-class-properties"
+              )
             ]
           })
         ]
@@ -194,30 +202,38 @@ class Transpiler {
 
       const outputOptions = {
         format: "amd",
-        dir: path.join(this.config.storefrontPath, ".occ-transpiled"),
+        dir: this.config.transpiledFolder,
         sourceMap: "inline"
       };
 
-      // const bundle = await rollup.rollup(inputOptions);
-      // await bundle.watch(outputOptions);
-
+      console.log("Starting Transpilers...");
       const watcher = rollup.watch({
         ...inputOptions,
         output: [outputOptions]
       });
 
       watcher.on("event", event => {
-        console.log(event.code);
+        if (event.code === "END") {
+          resolve();
+        }
       });
     });
   }
 }
 
-(async () => {
-  const transpiler = await new Transpiler();
-  await transpiler.js();
-})();
+exports.preprocessors = {
+  async shouldResolve() {
+    return true;
+  },
+  async resolve() {
+    const transpiler = await new Transpiler();
 
-process.stdin.resume();
+    try {
+      await transpiler.js();
+    } catch (error) {
+      Promise.reject(error);
+    }
 
-module.exports = Transpiler;
+    return true;
+  }
+};
