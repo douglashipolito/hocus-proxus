@@ -6,7 +6,8 @@ const babel = require("rollup-plugin-babel");
 const nodeResolve = require("rollup-plugin-node-resolve");
 const multiInput = require("rollup-plugin-multi-input").default;
 const progress = require("rollup-plugin-progress");
-const amd = require('rollup-plugin-amd');
+const amd = require("rollup-plugin-amd");
+const exitHook = require("async-exit-hook");
 
 /**
  * Create the index file containing the app level
@@ -43,7 +44,7 @@ function createJsBundleIndexFile(filesList, appLevelIndexTemplate) {
     /#dependenciesApp/g,
     dependenciesApp
   );
-  
+
   return appLevelIndexTemplate;
 }
 
@@ -58,6 +59,17 @@ class Transpiler {
         reject(error);
         throw new Error(error);
       }
+
+      exitHook(async callback => {
+        console.log("Transpiler - Clearing temp files...");
+        try {
+          await fs.remove(this.config.transpiledFolder);
+        } catch (error) {
+          console.log(error);
+        }
+
+        setTimeout(callback, 200);
+      });
     });
   }
 
@@ -111,8 +123,10 @@ class Transpiler {
             [outputFile]: file
           };
         });
-      
-      const extraAppLevelJSs = appLevelFiles.filter(file => !/oeCore|oeLibs/.test(file));
+
+      const extraAppLevelJSs = appLevelFiles.filter(
+        file => !/oeCore|oeLibs/.test(file)
+      );
       entries.push({
         [path.join("app-level", "oeCore")]: "oeCore.js"
       });
@@ -123,22 +137,29 @@ class Transpiler {
 
       extraAppLevelJSs.forEach(file => {
         const basePath = path
-            .relative(this.config.storefrontPath, file)
-            .split(path.sep)[0];
+          .relative(this.config.storefrontPath, file)
+          .split(path.sep)[0];
 
         const appLevelName = path
           .relative(this.config.storefrontPath, file)
-          .split(path.sep)[1]
-        
+          .split(path.sep)[1];
+
         entries.push({
-          [path.join(basePath, appLevelName)] : file
-        })
+          [path.join(basePath, appLevelName)]: file
+        });
       });
 
       const resolver = () => {
         return {
           name: "resolver", // this name will show up in warnings and errors
           resolveId: source => {
+            if (/\/oe-files|\/file/.test(source)) {
+              return {
+                id: source.replace("/", ""),
+                external: true
+              };
+            }
+
             if (source.startsWith("occ-components")) {
               return {
                 id: path.join(
@@ -175,20 +196,23 @@ class Transpiler {
       const inputOptions = {
         input: entries,
         external: id => {
-          return /^((\/file)|(\/oe-files)|(?!\.{1}|occ-components|(.+:\\)|\/{1}[a-z-A-Z0-9_.]{1})).+?$/.test(
+          return /^((?!\.{1}|occ-components|(.+:\\)|\/{1}[a-z-A-Z0-9_.]{1})).+?$/.test(
             id
           );
         },
-        onwarn(warning, warn) {
+        onwarn({ code, loc, frame, message }) {
           // skip certain warnings
-          if (warning.code === "UNUSED_EXTERNAL_IMPORT") return;
+          if (code === "UNUSED_EXTERNAL_IMPORT") return;
 
           // throw on others
-          if (warning.code === "NON_EXISTENT_EXPORT")
-            throw new Error(warning.message);
+          if (code === "NON_EXISTENT_EXPORT") throw new Error(message);
 
-          // Use default for everything else
-          warn(warning);
+          if (loc) {
+            console.warn(`${loc.file} (${loc.line}:${loc.column}) ${message}`);
+            if (frame) console.warn(frame);
+          } else {
+            console.warn(message);
+          }
         },
         plugins: [
           progress(),

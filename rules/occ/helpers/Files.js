@@ -18,7 +18,7 @@ class Files {
     });
   }
 
-  fileName(path, extension='js') {
+  fileName(path, extension = "js") {
     let match = path.match(new RegExp(`v.+\/(.+)\/${extension}`)) || "";
 
     if (match) {
