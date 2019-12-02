@@ -20,5 +20,8 @@
     "rollup-plugin-multi-input": "^1.0.2",
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-progress": "^1.1.1"
+  },
+  "devDependencies": {
+    "rollup-plugin-amd": "^4.0.0"
   }
 }

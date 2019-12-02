@@ -2,17 +2,14 @@ const path = require("path");
 const fs = require("fs-extra");
 const Files = require("../helpers/Files");
 
-const replaceJS = async requestDetail => {
-  let files, jsFiles, appLevelFiles;
-  let widgetName = requestDetail.url.match(/v.+\/(.+)\/js/) || "";
-  if (widgetName) {
-    widgetName = widgetName[1];
-  }
-
+const replace = async requestDetail => {
+  let files, foundJsFiles, requestedFileName;
+  
   try {
     files = await new Files();
-    jsFiles = await files.findFiles(
-      ["widgets"],
+    requestedFileName = files.fileName(requestDetail.url);
+    foundJsFiles = await files.findFiles(
+      ["widgets", 'app-level'],
       ["js"],
       files.config.transpiledFolder
     );
@@ -22,17 +19,17 @@ const replaceJS = async requestDetail => {
     throw new Error(error);
   }
 
-  const widgetsFiles = jsFiles.filter(jsFile =>
-    new RegExp(widgetName).test(jsFile)
+  const jsFiles = foundJsFiles.filter(jsFile =>
+    new RegExp(requestedFileName).test(jsFile)
   );
 
-  if (widgetsFiles.length) {
+  if (jsFiles.length) {
     const fileName = path
       .basename(requestDetail.url)
       .replace(/\.min/, "")
       .replace(/\?bust.*/, "");
-    const filePath = widgetsFiles.find(
-      widgetFile => path.basename(widgetFile) === fileName
+    const filePath = jsFiles.find(
+      file => path.basename(file) === fileName
     );
 
     let fileContent = "";
@@ -44,25 +41,27 @@ const replaceJS = async requestDetail => {
         console.log("Error on loading ", filePath);
         Promise.reject(error);
       }
+
+      return {
+        response: {
+          statusCode: 200,
+          header: requestDetail.requestOptions.headers,
+          body: fileContent
+        }
+      };
     }
 
-    return {
-      response: {
-        statusCode: 200,
-        header: requestDetail.requestOptions.headers,
-        body: fileContent
-      }
-    };
+    return null;
   }
 };
 
 exports.beforeSendRequest = {
   async shouldResolve({ requestDetail }) {
-    return /\/widget/.test(requestDetail.url);
+    return /\/widget|global/.test(requestDetail.url);
   },
   async resolve({ requestDetail }) {
     if (/\.js/.test(requestDetail.url)) {
-      return replaceJS(requestDetail);
+      return replace(requestDetail);
     }
   }
 };

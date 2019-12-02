@@ -6,6 +6,7 @@ const babel = require("rollup-plugin-babel");
 const nodeResolve = require("rollup-plugin-node-resolve");
 const multiInput = require("rollup-plugin-multi-input").default;
 const progress = require("rollup-plugin-progress");
+const amd = require('rollup-plugin-amd');
 
 /**
  * Create the index file containing the app level
@@ -42,7 +43,7 @@ function createJsBundleIndexFile(filesList, appLevelIndexTemplate) {
     /#dependenciesApp/g,
     dependenciesApp
   );
-
+  
   return appLevelIndexTemplate;
 }
 
@@ -110,13 +111,28 @@ class Transpiler {
             [outputFile]: file
           };
         });
-
+      
+      const extraAppLevelJSs = appLevelFiles.filter(file => !/oeCore|oeLibs/.test(file));
       entries.push({
         [path.join("app-level", "oeCore")]: "oeCore.js"
       });
 
       entries.push({
         [path.join("app-level", "oeLibs")]: "oeLibs.js"
+      });
+
+      extraAppLevelJSs.forEach(file => {
+        const basePath = path
+            .relative(this.config.storefrontPath, file)
+            .split(path.sep)[0];
+
+        const appLevelName = path
+          .relative(this.config.storefrontPath, file)
+          .split(path.sep)[1]
+        
+        entries.push({
+          [path.join(basePath, appLevelName)] : file
+        })
       });
 
       const resolver = () => {
@@ -178,6 +194,7 @@ class Transpiler {
           progress(),
           multiInput(),
           resolver(),
+          amd(),
           nodeResolve(),
           babel({
             exclude: "node_modules/**",

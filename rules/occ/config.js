@@ -19,7 +19,7 @@ function Config() {
     config.storefrontPath = path.join(config.projectDir, "storefront");
     config.transpiledFolder = path.join(
       config.storefrontPath,
-      "occ-transpiled"
+      ".occ-transpiled"
     );
 
     try {

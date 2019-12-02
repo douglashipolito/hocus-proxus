@@ -18,6 +18,16 @@ class Files {
     });
   }
 
+  fileName(path, extension='js') {
+    let match = path.match(new RegExp(`v.+\/(.+)\/${extension}`)) || "";
+
+    if (match) {
+      match = match[1];
+    }
+
+    return match;
+  }
+
   findFiles(paths, filter = [], basePath) {
     return new Promise(async (resolve, reject) => {
       let foundFiles;
