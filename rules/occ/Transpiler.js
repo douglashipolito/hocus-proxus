@@ -23,12 +23,12 @@ function createJsBundleIndexFile(filesList, appLevelIndexTemplate) {
   filesList.forEach(function(file) {
     var fileName = path.basename(file, ".js").replace(/[\W]/g, "_");
 
-    dependenciesImports.push("import " + fileName + " from '" + file + "';");
+    dependenciesImports.push(`"${file}"`);
     allDependencies.push(fileName);
     dependenciesApp.push("app['" + fileName + "'] = " + fileName + ";");
   });
 
-  dependenciesImports = dependenciesImports.join("\n");
+  dependenciesImports = dependenciesImports.join(",");
   allDependencies = allDependencies.join(",");
   dependenciesApp = dependenciesApp.join("\n");
 
@@ -181,6 +181,16 @@ class Transpiler {
           },
           load(id) {
             if (/oeCore\.js|oeLibs\.js/.test(id)) {
+              // console.log(
+              //   createJsBundleIndexFile(
+              //     appLevelFiles.filter(file =>
+              //       new RegExp(id.replace(".js", "")).test(file)
+              //     ),
+              //     appLevelIndexTemplate
+              //   )
+              // );
+              // process.exit(0);
+
               return createJsBundleIndexFile(
                 appLevelFiles.filter(file =>
                   new RegExp(id.replace(".js", "")).test(file)
@@ -254,6 +264,10 @@ class Transpiler {
       });
 
       watcher.on("event", event => {
+        if (event.code === "ERROR") {
+          console.log(event.error);
+        }
+
         if (event.code === "END") {
           resolve();
         }

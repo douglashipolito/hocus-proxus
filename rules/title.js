@@ -8,7 +8,7 @@ exports.beforeSendResponse = {
     const newResponse = {};
     const body = responseDetail.response.body.toString();
     const $ = cheerio.load(body, { decodeEntities: false });
-    $("title").text("domsdomsd");
+    $("title").text(`${$("title").text()}[Proxy]`);
     newResponse.body = $.html();
 
     return {

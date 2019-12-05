@@ -1,20 +1,20 @@
-#dependenciesImports
+define([#dependenciesImports], function(#allDependencies) {
+  const allDependencies = arguments;
 
-const allDependencies = [#allDependencies];
+  let app = {
+    onLoad : function () {
+      var currentContext = this;
+      var currentArguments = Array.prototype.slice.call(arguments);
 
-let app = {
-  onLoad : function () {
-    var currentContext = this;
-    var currentArguments = Array.prototype.slice.call(arguments);
+      allDependencies.forEach(function (currentDependency) {
+        if(currentDependency.onLoad) {
+          currentDependency.onLoad.apply(currentContext, currentArguments);
+        }
+      });
+    }
+  };
 
-    allDependencies.forEach(function (currentDependency) {
-      if(currentDependency.onLoad) {
-        currentDependency.onLoad.apply(currentContext, currentArguments);
-      }
-    });
-  }
-};
+  #dependenciesApp
 
-#dependenciesApp
-
-module.exports = app;
+  return app;
+});
