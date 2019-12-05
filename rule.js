@@ -1,4 +1,5 @@
 const _ = require("lodash");
+
 var rules = require("require-all")({
   dirname: `${__dirname}/rules`,
   recursive: false
@@ -42,7 +43,12 @@ for (ruleKey in rules) {
   }
 }
 
-async function processRules(type, requestDetail, responseDetail) {
+async function processRules({
+  serverOptions,
+  type,
+  requestDetail,
+  responseDetail
+}) {
   const types = {
     preprocessors,
     beforeSendRequest,
@@ -59,7 +65,11 @@ async function processRules(type, requestDetail, responseDetail) {
           return new Promise(async resolve => {
             _.defaultsDeep(
               globalResponse,
-              await rule.resolve({ requestDetail, responseDetail })
+              await rule.resolve({
+                serverOptions,
+                requestDetail,
+                responseDetail
+              })
             );
             resolve();
           });
@@ -96,7 +106,11 @@ async function processRules(type, requestDetail, responseDetail) {
           let ruleData = {};
 
           try {
-            ruleData = await rule.resolve({ requestDetail, responseDetail });
+            ruleData = await rule.resolve({
+              serverOptions,
+              requestDetail,
+              responseDetail
+            });
           } catch (error) {
             throw new Error(error);
           }
@@ -111,18 +125,25 @@ async function processRules(type, requestDetail, responseDetail) {
   return globalResponse;
 }
 
-module.exports = {
-  async preprocessors() {
-    return await processRules("preprocessors", {});
-  },
-  async beforeSendRequest(requestDetail) {
-    return await processRules("beforeSendRequest", requestDetail);
-  },
-  async beforeSendResponse(requestDetail, responseDetail) {
-    return await processRules(
-      "beforeSendResponse",
-      requestDetail,
-      responseDetail
-    );
-  }
+module.exports = function(serverOptions) {
+  return {
+    async preprocessors() {
+      return await processRules({ serverOptions, type: "preprocessors" });
+    },
+    async beforeSendRequest(requestDetail) {
+      return await processRules({
+        serverOptions,
+        type: "beforeSendRequest",
+        requestDetail
+      });
+    },
+    async beforeSendResponse(requestDetail, responseDetail) {
+      return await processRules({
+        serverOptions,
+        type: "beforeSendResponse",
+        requestDetail,
+        responseDetail
+      });
+    }
+  };
 };

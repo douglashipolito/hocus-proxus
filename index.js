@@ -11,15 +11,19 @@ const rootCACheck = require("./rootCACheck");
 const lan = require("lan-settings");
 const exitHook = require("async-exit-hook");
 const config = require("./config.json");
-const rule = require("./rule");
+const proxyOptions = {
+  proxyServer: {},
+  isProxyEnabled: true,
+  config
+};
+
+const rule = require("./rule")(proxyOptions);
 
 co(function*() {
   const internalV4Ip = yield internalIp.v4();
-  let proxyServer;
+  const proxyPacFile = `http://${internalV4Ip}:${config.webinterfacePort}/proxy.pac`;
 
   function setProxyConfig(enable, done = function() {}) {
-    const proxyPacFile = `http://${internalV4Ip}:${config.webinterfacePort}/proxy.pac`;
-
     lan
       .setSettings({
         autoConfig: enable,
@@ -27,40 +31,18 @@ co(function*() {
       })
       .then(() => {
         if (enable) {
-          console.log(`Proxy Auto Config enabled and set to ${proxyPacFile}`);
+          console.log(
+            `\n===> Proxy Auto Config enabled and set to ${proxyPacFile}\n`
+          );
         } else {
-          console.log(`Proxy Auto Config disabled`);
+          console.log(`\n===> Proxy Auto Config disabled\n`);
         }
         done();
       })
       .catch(error => {
-        console.log("Proxy Lan Settings: ", error);
+        console.log("===> Proxy Lan Settings: ", error);
         done(error);
       });
-
-    if (enable) {
-      proxyServer.webServerInstance.app.get("/proxy.pac", (req, res) => {
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader("Content-type", "text/plain");
-        fs.readFile(
-          path.join(__dirname, "proxy.pac"),
-          { encoding: "utf8" },
-          (error, data) => {
-            if (error) {
-              console.log(error);
-              return res.end("Error on requesting proxy pac");
-            }
-
-            data = data.replace(
-              /#PROXY/g,
-              `${internalV4Ip}:${config.proxyPort}`
-            );
-            data = data.replace(/#DOMAIN/g, config.domain);
-            res.end(data);
-          }
-        );
-      });
-    }
   }
 
   function stopServer(proxyServer) {
@@ -85,19 +67,79 @@ co(function*() {
       forceProxyHttps: true
     };
 
-    proxyServer = new AnyProxy.ProxyServer(options);
+    proxyOptions.proxyServer = new AnyProxy.ProxyServer(options);
 
-    proxyServer.on("ready", () => {
+    proxyOptions.proxyServer.on("ready", () => {
       /* */
     });
-    proxyServer.on("error", e => {
+    proxyOptions.proxyServer.on("error", e => {
       /* */
     });
-    proxyServer.start();
-    setProxyConfig(true);
+    proxyOptions.proxyServer.start();
+    setProxyConfig(true, () => {
+      console.log(
+        `===> Web Interface address: http://${internalV4Ip}:${config.webinterfacePort}\n`
+      );
+
+      console.log(
+        `===> Proxy Options:
+        - Status: http://${internalV4Ip}:${config.webinterfacePort}/proxy-enabled
+        - Enable: http://${internalV4Ip}:${config.webinterfacePort}/proxy-enabled/true
+        - Disable: http://${internalV4Ip}:${config.webinterfacePort}/proxy-enabled/false\n`
+      );
+
+      proxyOptions.proxyServer.webServerInstance.app.get(
+        "/proxy.pac",
+        (req, res) => {
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Content-type", "text/plain");
+          fs.readFile(
+            path.join(__dirname, "proxy.pac"),
+            { encoding: "utf8" },
+            (error, data) => {
+              if (error) {
+                console.log(error);
+                return res.end("Error on requesting proxy pac");
+              }
+
+              data = data.replace(
+                /#PROXY/g,
+                `${internalV4Ip}:${config.proxyPort}`
+              );
+              data = data.replace(/#DOMAIN/g, config.domain);
+              res.end(data);
+            }
+          );
+        }
+      );
+
+      proxyOptions.proxyServer.webServerInstance.app.get(
+        "/proxy-enabled/:enabled?",
+        (req, res) => {
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Content-type", "application/json");
+          const enabledParam = req.params.enabled;
+
+          if (enabledParam) {
+            const isProxyEnabled = enabledParam.toLowerCase() === "true";
+
+            if (isProxyEnabled !== proxyOptions.isProxyEnabled) {
+              setProxyConfig(isProxyEnabled);
+            }
+
+            proxyOptions.isProxyEnabled = isProxyEnabled;
+          }
+
+          res.json({
+            enabled: proxyOptions.isProxyEnabled
+          });
+        }
+      );
+    });
   }
 
   const caStatus = yield AnyProxy.utils.certMgr.getCAStatus();
+
   rule
     .preprocessors()
     .then(() => {
@@ -113,7 +155,7 @@ co(function*() {
           }
         }
 
-        stopServer(proxyServer);
+        stopServer(proxyOptions.proxyServer);
       });
     })
     .catch(error => {

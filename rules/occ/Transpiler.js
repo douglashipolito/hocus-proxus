@@ -149,9 +149,9 @@ class Transpiler {
         });
       });
 
-      const resolver = () => {
+      const occResolverPlugin = () => {
         return {
-          name: "resolver", // this name will show up in warnings and errors
+          name: "occ-resolver-plugin", // this name will show up in warnings and errors
           resolveId: source => {
             if (/\/oe-files|\/file/.test(source)) {
               return {
@@ -181,16 +181,6 @@ class Transpiler {
           },
           load(id) {
             if (/oeCore\.js|oeLibs\.js/.test(id)) {
-              // console.log(
-              //   createJsBundleIndexFile(
-              //     appLevelFiles.filter(file =>
-              //       new RegExp(id.replace(".js", "")).test(file)
-              //     ),
-              //     appLevelIndexTemplate
-              //   )
-              // );
-              // process.exit(0);
-
               return createJsBundleIndexFile(
                 appLevelFiles.filter(file =>
                   new RegExp(id.replace(".js", "")).test(file)
@@ -206,9 +196,7 @@ class Transpiler {
       const inputOptions = {
         input: entries,
         external: id => {
-          return /^((?!\.{1}|occ-components|(.+:\\)|\/{1}[a-z-A-Z0-9_.]{1})).+?$/.test(
-            id
-          );
+          return /^((?!\.{1}|(.+:\\)|\/{1}[a-z-A-Z0-9_.]{1})).+?$/.test(id);
         },
         onwarn({ code, loc, frame, message }) {
           // skip certain warnings
@@ -227,7 +215,7 @@ class Transpiler {
         plugins: [
           progress(),
           multiInput(),
-          resolver(),
+          occResolverPlugin(),
           amd(),
           nodeResolve(),
           babel({
@@ -257,7 +245,7 @@ class Transpiler {
         sourceMap: "inline"
       };
 
-      console.log("Starting Transpilers...");
+      console.log("===> Starting Transpilers...");
       const watcher = rollup.watch({
         ...inputOptions,
         output: [outputOptions]
@@ -269,6 +257,7 @@ class Transpiler {
         }
 
         if (event.code === "END") {
+          console.log("===> Transpiling process finished");
           resolve();
         }
       });

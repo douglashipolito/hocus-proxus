@@ -2,66 +2,68 @@ const path = require("path");
 const fs = require("fs-extra");
 const Files = require("../helpers/Files");
 
-const replace = async requestDetail => {
-  let files, foundJsFiles, requestedFileName;
-  
-  try {
-    files = await new Files();
-    requestedFileName = files.fileName(requestDetail.url);
-    foundJsFiles = await files.findFiles(
-      ["widgets", 'app-level'],
-      ["js"],
-      files.config.transpiledFolder
-    );
-  } catch (error) {
-    console.log(error);
-    Promise.reject(error);
-    throw new Error(error);
-  }
-
-  const jsFiles = foundJsFiles.filter(jsFile =>
-    new RegExp(requestedFileName).test(jsFile)
-  );
-
-  if (jsFiles.length) {
-    const fileName = path
-      .basename(requestDetail.url)
-      .replace(/\.min/, "")
-      .replace(/\?bust.*/, "");
-    const filePath = jsFiles.find(
-      file => path.basename(file) === fileName
-    );
-
-    let fileContent = "";
-
-    if (filePath) {
-      try {
-        fileContent = await fs.readFile(filePath);
-      } catch (error) {
-        console.log("Error on loading ", filePath);
-        Promise.reject(error);
-      }
-
-      return {
-        response: {
-          statusCode: 200,
-          header: requestDetail.requestOptions.headers,
-          body: fileContent
-        }
-      };
-    }
-
-    return null;
-  }
-};
-
 exports.beforeSendRequest = {
   async shouldResolve({ requestDetail }) {
-    return /\/widget|global/.test(requestDetail.url);
+    return /\.js|\/js\//.test(requestDetail.url);
   },
   async resolve({ requestDetail }) {
-    if (/\.js/.test(requestDetail.url)) {
-      return replace(requestDetail);
+    let files, jsFiles, requestedFileName;
+
+    if (!/\.js/.test(requestDetail.url)) {
+      requestDetail.url = requestDetail.url.replace(/\?bust/, ".js?bust");
     }
+
+    try {
+      files = await new Files();
+      requestedFileName = files.fileName(requestDetail.url);
+      jsFiles = await files.findFiles(
+        ["widgets", "app-level"],
+        ["js"],
+        files.config.transpiledFolder
+      );
+    } catch (error) {
+      console.log(error);
+      Promise.reject(error);
+      throw new Error(error);
+    }
+
+    //If there is no local file, don't change the response
+    if (!requestedFileName) {
+      return null;
+    }
+
+    const foundJsFiles = jsFiles.filter(jsFile =>
+      new RegExp(requestedFileName).test(jsFile)
+    );
+
+    if (foundJsFiles.length) {
+      const fileName = path
+        .basename(requestDetail.url)
+        .replace(/\.min/, "")
+        .replace(/\?bust.*/, "");
+      const filePath = foundJsFiles.find(
+        file => path.basename(file) === fileName
+      );
+
+      let fileContent = "";
+
+      if (filePath) {
+        try {
+          fileContent = await fs.readFile(filePath);
+        } catch (error) {
+          console.log("Error on loading ", filePath);
+          Promise.reject(error);
+        }
+
+        return {
+          response: {
+            statusCode: 200,
+            header: requestDetail.requestOptions.headers,
+            body: fileContent
+          }
+        };
+      }
+    }
+    return null;
   }
 };

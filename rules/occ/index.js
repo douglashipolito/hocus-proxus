@@ -1,7 +1,7 @@
 exports.preprocessors = [require("./transpiler")];
 
 exports.routes = [
+  require("./routes/page"),
   require("./routes/javascript"),
-  require("./routes/theme"),
-  require("./routes/app-level")
+  require("./routes/theme")
 ];
