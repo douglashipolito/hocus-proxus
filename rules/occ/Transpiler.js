@@ -252,6 +252,14 @@ class Transpiler {
       });
 
       watcher.on("event", event => {
+        if (event.code === "BUNDLE_START") {
+          console.log("===> Bundling...");
+        }
+
+        if (event.code === "BUNDLE_END") {
+          console.log("===> Bundling ended...");
+        }
+
         if (event.code === "ERROR") {
           console.log(event.error);
         }
