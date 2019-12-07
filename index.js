@@ -6,7 +6,7 @@ const co = require("co");
 const path = require("path");
 const AnyProxy = require("anyproxy");
 const fs = require("fs");
-const internalIp = require("internal-ip");
+const ip = require("ip");
 const rootCACheck = require("./rootCACheck");
 const lan = require("lan-settings");
 const exitHook = require("async-exit-hook");
@@ -20,8 +20,8 @@ const proxyOptions = {
 const rule = require("./rule")(proxyOptions);
 
 co(function*() {
-  const internalV4Ip = yield internalIp.v4();
-  const proxyPacFile = `http://${internalV4Ip}:${config.webinterfacePort}/proxy.pac`;
+  const internalIp = yield ip.address();
+  const proxyPacFile = `http://${internalIp}:${config.webinterfacePort}/proxy.pac`;
 
   function setProxyConfig(enable, done = function() {}) {
     lan
@@ -78,14 +78,14 @@ co(function*() {
     proxyOptions.proxyServer.start();
     setProxyConfig(true, () => {
       console.log(
-        `===> Web Interface address: http://${internalV4Ip}:${config.webinterfacePort}\n`
+        `===> Web Interface address: http://${internalIp}:${config.webinterfacePort}\n`
       );
 
       console.log(
         `===> Proxy Options:
-        - Status: http://${internalV4Ip}:${config.webinterfacePort}/proxy-enabled
-        - Enable: http://${internalV4Ip}:${config.webinterfacePort}/proxy-enabled/true
-        - Disable: http://${internalV4Ip}:${config.webinterfacePort}/proxy-enabled/false\n`
+        - Status: http://${internalIp}:${config.webinterfacePort}/proxy-enabled
+        - Enable: http://${internalIp}:${config.webinterfacePort}/proxy-enabled/true
+        - Disable: http://${internalIp}:${config.webinterfacePort}/proxy-enabled/false\n`
       );
 
       proxyOptions.proxyServer.webServerInstance.app.get(
@@ -104,7 +104,7 @@ co(function*() {
 
               data = data.replace(
                 /#PROXY/g,
-                `${internalV4Ip}:${config.proxyPort}`
+                `${internalIp}:${config.proxyPort}`
               );
               data = data.replace(/#DOMAIN/g, config.domain);
               res.end(data);
