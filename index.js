@@ -20,7 +20,7 @@ const proxyOptions = {
 const rule = require("./rule")(proxyOptions);
 
 co(function*() {
-  const internalIp = yield ip.address();
+  const internalIp = ip.address();
   const proxyPacFile = `http://${internalIp}:${config.webinterfacePort}/proxy.pac`;
 
   function setProxyConfig(enable, done = function() {}) {
