@@ -35,10 +35,13 @@ exports.beforeSendRequest = {
     const foundJsFiles = jsFiles.filter(jsFile =>
       new RegExp(requestedFileName).test(jsFile)
     );
-    
+
     if (foundJsFiles.length) {
       const filePath = foundJsFiles.find(
-        file => path.basename(file) === requestedFileName || (path.basename(file).includes('index.js') && file.includes(requestedFileName))
+        file =>
+          path.basename(file, ".js") === requestedFileName ||
+          (path.basename(file).includes("index.js") &&
+            file.includes(requestedFileName))
       );
 
       let fileContent = "";
