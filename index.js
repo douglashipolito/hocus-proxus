@@ -6,9 +6,8 @@ const co = require("co");
 const path = require("path");
 const AnyProxy = require("anyproxy");
 const fs = require("fs");
-const ip = require("ip");
-const rootCACheck = require("./rootCACheck");
-const lan = require("lan-settings");
+const rootCACheck = require("./util/rootCACheck");
+const networkSettings = require("./util/networkSettings");
 const exitHook = require("async-exit-hook");
 const config = require("./config.json");
 const proxyOptions = {
@@ -20,35 +19,13 @@ const proxyOptions = {
 const rule = require("./rule")(proxyOptions);
 
 co(function*() {
-  const internalIp = ip.address();
+  const internalIp = networkSettings.getIpAddress();
   const proxyPacFile = `http://${internalIp}:${config.webinterfacePort}/proxy.pac`;
-
-  function setProxyConfig(enable, done = function() {}) {
-    lan
-      .setSettings({
-        autoConfig: enable,
-        autoConfigUrl: proxyPacFile
-      })
-      .then(() => {
-        if (enable) {
-          console.log(
-            `\n===> Proxy Auto Config enabled and set to ${proxyPacFile}\n`
-          );
-        } else {
-          console.log(`\n===> Proxy Auto Config disabled\n`);
-        }
-        done();
-      })
-      .catch(error => {
-        console.log("===> Proxy Lan Settings: ", error);
-        done(error);
-      });
-  }
 
   function stopServer(proxyServer) {
     exitHook(callback => {
       console.log("disabling proxy auto config");
-      setProxyConfig(false, () => {
+      networkSettings.setAutomaticProxy(false, proxyPacFile).then(() => {
         console.log("pausing server...");
         proxyServer.close();
         setTimeout(callback, 200);
@@ -76,7 +53,7 @@ co(function*() {
       /* */
     });
     proxyOptions.proxyServer.start();
-    setProxyConfig(true, () => {
+    networkSettings.setAutomaticProxy(true, proxyPacFile).then(() => {
       console.log(
         `===> Web Interface address: http://${internalIp}:${config.webinterfacePort}\n`
       );
@@ -94,7 +71,7 @@ co(function*() {
           res.setHeader("Access-Control-Allow-Origin", "*");
           res.setHeader("Content-type", "text/plain");
           fs.readFile(
-            path.join(__dirname, "proxy.pac"),
+            path.join(__dirname, "util", "proxy.pac"),
             { encoding: "utf8" },
             (error, data) => {
               if (error) {
@@ -124,7 +101,7 @@ co(function*() {
             const isProxyEnabled = enabledParam.toLowerCase() === "true";
 
             if (isProxyEnabled !== proxyOptions.isProxyEnabled) {
-              setProxyConfig(isProxyEnabled);
+              networkSettings.setAutomaticProxy(isProxyEnabled, proxyPacFile);
             }
 
             proxyOptions.isProxyEnabled = isProxyEnabled;
