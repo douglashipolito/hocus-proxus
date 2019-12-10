@@ -3,143 +3,93 @@ process.binding(
 ).HTTPParser = require("http-parser-js").HTTPParser;
 
 const co = require("co");
-const path = require("path");
 const AnyProxy = require("anyproxy");
-const fs = require("fs");
+const ruleDefinition = require("./rule");
+const webInterfaceRoutes = require("./webInterfaceRoutes");
 const rootCACheck = require("./util/rootCACheck");
 const networkSettings = require("./util/networkSettings");
 const exitHook = require("async-exit-hook");
 const config = require("./config.json");
-const proxyOptions = {
-  proxyServer: {},
-  isProxyEnabled: true,
-  config
-};
 
-const rule = require("./rule")(proxyOptions);
-
-co(function*() {
+async function main() {
   const internalIp = networkSettings.getIpAddress();
-  const proxyPacFile = `http://${internalIp}:${config.webinterfacePort}/proxy.pac`;
+  const proxyOptions = {
+    proxyServer: {},
+    internalIp,
+    proxyPacFile: `http://${internalIp}:${config.webinterfacePort}/proxy.pac`,
+    isProxyEnabled: true,
+    config
+  };
 
-  function stopServer(proxyServer) {
-    exitHook(callback => {
+  const rule = ruleDefinition(proxyOptions);
+
+  const getCAStatus = co.wrap(function*(val) {
+    return yield AnyProxy.utils.certMgr.getCAStatus();
+  });
+
+  const serverOptions = {
+    port: config.proxyPort,
+    rule,
+    webInterface: {
+      enable: true,
+      webPort: config.webinterfacePort
+    },
+    forceProxyHttps: true
+  };
+
+  const startServer = () => {
+    return new Promise((resolve, reject) => {
+      proxyOptions.proxyServer = new AnyProxy.ProxyServer(serverOptions);
+      proxyOptions.proxyServer.on("ready", resolve);
+      proxyOptions.proxyServer.on("error", reject);
+      proxyOptions.proxyServer.start();
+    });
+  };
+
+  try {
+    const caStatus = await getCAStatus();
+
+    if (!caStatus.exist && !caStatus.trusted) {
+      await rootCACheck();
+    }
+
+    await networkSettings.setAutomaticProxy(true, proxyOptions.proxyPacFile);
+    console.log(
+      `===> Proxy Options:
+      - Status: http://${internalIp}:${config.webinterfacePort}/proxy-enabled
+      - Enable: http://${internalIp}:${config.webinterfacePort}/proxy-enabled/true
+      - Disable: http://${internalIp}:${config.webinterfacePort}/proxy-enabled/false\n`
+    );
+
+    await startServer();
+
+    // Setting custom routes for the Web Interface
+    webInterfaceRoutes(proxyOptions);
+
+    // Run Preprocessors
+    await rule.preprocessors();
+
+    //On Exit
+    exitHook(async callback => {
       console.log("disabling proxy auto config");
-      networkSettings.setAutomaticProxy(false, proxyPacFile).then(() => {
+      try {
+        await networkSettings.setAutomaticProxy(
+          false,
+          proxyOptions.proxyPacFile
+        );
         console.log("pausing server...");
-        proxyServer.close();
-        setTimeout(callback, 200);
-      });
+        proxyOptions.proxyServer.close();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        callback();
+      } catch (error) {
+        callback();
+      }
     });
+  } catch (error) {
+    console.log(error);
+    process.exit(0);
   }
-
-  function startServer() {
-    const options = {
-      port: config.proxyPort,
-      rule,
-      webInterface: {
-        enable: true,
-        webPort: config.webinterfacePort
-      },
-      forceProxyHttps: true
-    };
-
-    proxyOptions.proxyServer = new AnyProxy.ProxyServer(options);
-
-    proxyOptions.proxyServer.on("ready", () => {
-      /* */
-    });
-    proxyOptions.proxyServer.on("error", e => {
-      /* */
-    });
-    proxyOptions.proxyServer.start();
-    networkSettings.setAutomaticProxy(true, proxyPacFile).then(() => {
-      console.log(
-        `===> Web Interface address: http://${internalIp}:${config.webinterfacePort}\n`
-      );
-
-      console.log(
-        `===> Proxy Options:
-        - Status: http://${internalIp}:${config.webinterfacePort}/proxy-enabled
-        - Enable: http://${internalIp}:${config.webinterfacePort}/proxy-enabled/true
-        - Disable: http://${internalIp}:${config.webinterfacePort}/proxy-enabled/false\n`
-      );
-
-      proxyOptions.proxyServer.webServerInstance.app.get(
-        "/proxy.pac",
-        (req, res) => {
-          res.setHeader("Access-Control-Allow-Origin", "*");
-          res.setHeader("Content-type", "text/plain");
-          fs.readFile(
-            path.join(__dirname, "util", "proxy.pac"),
-            { encoding: "utf8" },
-            (error, data) => {
-              if (error) {
-                console.log(error);
-                return res.end("Error on requesting proxy pac");
-              }
-
-              data = data.replace(
-                /#PROXY/g,
-                `${internalIp}:${config.proxyPort}`
-              );
-              data = data.replace(/#DOMAIN/g, config.domain);
-              res.end(data);
-            }
-          );
-        }
-      );
-
-      proxyOptions.proxyServer.webServerInstance.app.get(
-        "/proxy-enabled/:enabled?",
-        (req, res) => {
-          res.setHeader("Access-Control-Allow-Origin", "*");
-          res.setHeader("Content-type", "application/json");
-          const enabledParam = req.params.enabled;
-
-          if (enabledParam) {
-            const isProxyEnabled = enabledParam.toLowerCase() === "true";
-
-            if (isProxyEnabled !== proxyOptions.isProxyEnabled) {
-              networkSettings.setAutomaticProxy(isProxyEnabled, proxyPacFile);
-            }
-
-            proxyOptions.isProxyEnabled = isProxyEnabled;
-          }
-
-          res.json({
-            enabled: proxyOptions.isProxyEnabled
-          });
-        }
-      );
-    });
-  }
-
-  const caStatus = yield AnyProxy.utils.certMgr.getCAStatus();
-
-  rule
-    .preprocessors()
-    .then(() => {
-      co(function*() {
-        if (caStatus.exist && caStatus.trusted) {
-          startServer();
-        } else {
-          try {
-            yield rootCACheck();
-            startServer();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
-        stopServer(proxyOptions.proxyServer);
-      });
-    })
-    .catch(error => {
-      console.log(error);
-      process.exit(0);
-    });
-});
+}
 
 process
   .on("unhandledRejection", (reason, p) => {
@@ -150,4 +100,4 @@ process
     process.exit(1);
   });
 
-process.stdin.resume();
+main();

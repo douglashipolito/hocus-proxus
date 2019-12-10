@@ -2,7 +2,7 @@
  * check if root CA exists and installed
  * will prompt to generate when needed
  */
-
+const co = require("co");
 const thunkify = require("thunkify");
 const AnyProxy = require("anyproxy");
 const certMgr = AnyProxy.utils.certMgr;
@@ -11,7 +11,7 @@ function checkRootCAExists() {
   return certMgr.isRootCAFileExists();
 }
 
-module.exports = function*() {
+module.exports = co.wrap(function*() {
   try {
     if (!checkRootCAExists()) {
       console.log("Missing root CA, generating now");
@@ -27,4 +27,4 @@ module.exports = function*() {
   } catch (e) {
     console.error(e);
   }
-};
+});

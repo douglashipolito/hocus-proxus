@@ -53,6 +53,13 @@ class Transpiler {
     return new Promise(async (resolve, reject) => {
       try {
         this.config = await require("./config")();
+
+        //It will replace the main widget index.js file
+        // Temporary solution
+        this.widgetJsIndexContent = await fs.readFile(
+          path.join(__dirname, "templates", "widget-index.js"),
+          "utf8"
+        );
         resolve(this);
       } catch (error) {
         console.log(error);
@@ -149,6 +156,7 @@ class Transpiler {
         });
       });
 
+      const widgetJsIndexContent = this.widgetJsIndexContent;
       const occResolverPlugin = () => {
         return {
           name: "occ-resolver-plugin", // this name will show up in warnings and errors
@@ -180,6 +188,11 @@ class Transpiler {
             return null; // other ids should be handled as usually
           },
           load(id) {
+            // Replacing the main js file index
+            if (/widgets/.test(id) && /\/js\/index\.js/.test(id)) {
+              return widgetJsIndexContent;
+            }
+
             if (/oeCore\.js|oeLibs\.js/.test(id)) {
               return createJsBundleIndexFile(
                 appLevelFiles.filter(file =>
@@ -196,7 +209,9 @@ class Transpiler {
       const inputOptions = {
         input: entries,
         external: id => {
-          return /^((?!\.{1}|(.+:\\)|\/{1}[a-z-A-Z0-9_.]{1})).+?$/.test(id);
+          return /^((?!\.{1}|occ-components|(.+:\\)|\/{1}[a-z-A-Z0-9_.]{1})).+?$/.test(
+            id
+          );
         },
         onwarn({ code, loc, frame, message }) {
           // skip certain warnings
