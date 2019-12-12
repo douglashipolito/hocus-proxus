@@ -35,13 +35,13 @@ class Proxy {
     };
 
     process
-    .on("unhandledRejection", (reason, p) => {
-      console.error(reason, "Unhandled Rejection at Promise", p);
-    })
-    .on("uncaughtException", err => {
-      console.error(err, "Uncaught Exception thrown");
-      process.exit(1);
-    });
+      .on("unhandledRejection", (reason, p) => {
+        console.error(reason, "Unhandled Rejection at Promise", p);
+      })
+      .on("uncaughtException", err => {
+        console.error(err, "Uncaught Exception thrown");
+        process.exit(1);
+      });
   }
 
   async start() {
@@ -53,7 +53,9 @@ class Proxy {
           await this.rootCACheck();
         }
 
-        await this.setAutomaticProxy({ enabled: true, proxyPacFilePath: this.proxyOptions.proxyPacFile });
+        await this.enableSystemProxy({
+          proxyPac: this.proxyOptions.proxyPacFile
+        });
         console.log(
           `===> Proxy Options:
           - Status: http://${this.proxyOptions.internalIp}:${config.webinterfacePort}/proxy-enabled
@@ -73,9 +75,8 @@ class Proxy {
         exitHook(async callback => {
           console.log("disabling proxy auto config");
           try {
-            await this.setAutomaticProxy({
-              enabled: false,
-              proxyPacFilePath: this.proxyOptions.proxyPacFile
+            await this.disableSystemProxy({
+              proxyPac: this.proxyOptions.proxyPacFile
             });
             console.log("pausing server...");
             this.proxyOptions.proxyServer.close();
@@ -95,7 +96,9 @@ class Proxy {
 
   async startProxyServer() {
     return new Promise((resolve, reject) => {
-      this.proxyOptions.proxyServer = new AnyProxy.ProxyServer(this.serverOptions);
+      this.proxyOptions.proxyServer = new AnyProxy.ProxyServer(
+        this.serverOptions
+      );
       this.proxyOptions.proxyServer.on("ready", resolve);
       this.proxyOptions.proxyServer.on("error", reject);
       this.proxyOptions.proxyServer.start();
@@ -112,8 +115,22 @@ class Proxy {
     });
   }
 
-  async setAutomaticProxy({ enabled, proxyPacFilePath }) {
-    return await networkSettings.setAutomaticProxy(enabled, proxyPacFilePath);
+  async enableSystemProxy({ proxyPac }) {
+    return await networkSettings.toggleSystemProxy({
+      enable: true,
+      proxyPac,
+      ip: this.proxyOptions.internalIp,
+      port: config.proxyPort
+    });
+  }
+
+  async disableSystemProxy({ proxyPac }) {
+    return await networkSettings.toggleSystemProxy({
+      enable: false,
+      proxyPac,
+      ip: this.proxyOptions.internalIp,
+      port: config.proxyPort
+    });
   }
 
   async setWebInterfaceRoutes(proxyOptions) {
