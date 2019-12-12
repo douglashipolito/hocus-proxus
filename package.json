@@ -1,13 +1,34 @@
 {
-  "name": "occ-tools-proxy",
+  "name": "hocus-proxus",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "description": "A configurable HTTP/HTTPS proxy in NodeJS",
+  "main": "src/hocus-proxus.js",
+  "bin": {
+    "hocus-proxus": "bin/hocus-proxus"
   },
-  "author": "",
-  "license": "ISC",
+  "scripts": {
+    "test": "jest"
+  },
+  "author": "Douglas Hipolito <me@douglashipolito.com> <https://github.com/douglashipolito>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/douglashipolito/hocus-proxus"
+  },
+  "bugs": {
+    "type": "git",
+    "url": "https://github.com/douglashipolito/hocus-proxus/issues"
+  },
+  "engines": {
+    "node": ">= 13.2.0",
+    "npm": ">= 6.13"
+  },
+  "license": "MIT",
+  "keywords": [
+    "proxy",
+    "es6",
+    "node",
+    "javascript"
+  ],
   "dependencies": {
     "anyproxy": "^4.1.0",
     "async-exit-hook": "^2.0.1",
@@ -21,5 +42,8 @@
     "lodash": "^4.17.15",
     "require-all": "^3.0.0",
     "thunkify": "^2.1.2"
+  },
+  "devDependencies": {
+    "jest": "^24.9.0"
   }
 }

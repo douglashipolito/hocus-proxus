@@ -1,7 +1,8 @@
+const path = require('path');
 const _ = require("lodash");
 
 var rules = require("require-all")({
-  dirname: `${__dirname}/rules`,
+  dirname: path.join(__dirname, '..', 'rules'),
   recursive: false
 });
 

@@ -19,10 +19,10 @@ class Files {
   }
 
   fileName(path, extension = "js") {
-    let match = path.match(new RegExp(`v.+\/(.+)\/${extension}`)) || "";
+    let match = path.match(new RegExp(`v.+\/(.+)\.${extension}`)) || "";
 
     if (match) {
-      match = match[1];
+      match = match[1].replace(/\.min/, '');
     }
 
     return match;

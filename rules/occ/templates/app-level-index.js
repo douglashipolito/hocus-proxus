@@ -1,13 +1,13 @@
 define([#dependenciesImports], function(#allDependencies) {
-  const allDependencies = arguments;
+  const allDependencies = Array.from(arguments);
 
   let app = {
     onLoad : function () {
       var currentContext = this;
-      var currentArguments = Array.prototype.slice.call(arguments);
+      var currentArguments = Array.from(arguments);
 
       allDependencies.forEach(function (currentDependency) {
-        if(currentDependency.onLoad) {
+        if(currentDependency && currentDependency.onLoad) {
           currentDependency.onLoad.apply(currentContext, currentArguments);
         }
       });

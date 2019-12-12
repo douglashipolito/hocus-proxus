@@ -1,6 +1,6 @@
 const fs = require("fs-extra");
 const path = require("path");
-const networkSettings = require("./util/networkSettings");
+const networkSettings = require("./util/network-settings");
 
 module.exports = async proxyOptions => {
   // Proxy Pac

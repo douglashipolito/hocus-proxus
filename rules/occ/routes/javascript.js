@@ -32,6 +32,8 @@ exports.beforeSendRequest = {
       return null;
     }
 
+    requestedFileName = requestedFileName.replace(/\.min/, '');
+
     const foundJsFiles = jsFiles.filter(jsFile =>
       new RegExp(requestedFileName).test(jsFile)
     );
@@ -50,7 +52,6 @@ exports.beforeSendRequest = {
         );
       });
 
-      console.log(filePath);
       let fileContent = "";
 
       if (filePath) {
