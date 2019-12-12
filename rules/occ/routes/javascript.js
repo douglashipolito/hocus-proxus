@@ -37,13 +37,20 @@ exports.beforeSendRequest = {
     );
 
     if (foundJsFiles.length) {
-      const filePath = foundJsFiles.find(
-        file =>
+      const filePath = foundJsFiles.find(file => {
+        if (/element/.test(file)) {
+          const elementName = file.split(path.sep).reverse()[1];
+          return elementName === requestedFileName;
+        }
+
+        return (
           path.basename(file, ".js") === requestedFileName ||
           (path.basename(file).includes("index.js") &&
             file.includes(requestedFileName))
-      );
+        );
+      });
 
+      console.log(filePath);
       let fileContent = "";
 
       if (filePath) {

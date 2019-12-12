@@ -1,8 +1,10 @@
 const path = require("path");
 const fs = require("fs-extra");
+const chokidar = require("chokidar");
 const Files = require("./helpers/Files");
 const rollup = require("rollup");
 const babel = require("rollup-plugin-babel");
+const less = require("less");
 const nodeResolve = require("rollup-plugin-node-resolve");
 const multiInput = require("rollup-plugin-multi-input").default;
 const progress = require("rollup-plugin-progress");
@@ -50,6 +52,21 @@ function createJsBundleIndexFile(filesList, appLevelIndexTemplate) {
 
 class Transpiler {
   constructor() {
+    this.config = {};
+    exitHook(async callback => {
+      console.log("Transpiler - Clearing temp files...");
+      try {
+        await fs.remove(this.config.transpiledFolder);
+        await this.lessWatcher.close();
+      } catch (error) {
+        console.log(error);
+      }
+
+      setTimeout(callback, 200);
+    });
+  }
+
+  setConfigs() {
     return new Promise(async (resolve, reject) => {
       try {
         this.config = await require("./config")();
@@ -66,27 +83,113 @@ class Transpiler {
         reject(error);
         throw new Error(error);
       }
+    });
+  }
 
-      exitHook(async callback => {
-        console.log("Transpiler - Clearing temp files...");
-        try {
-          await fs.remove(this.config.transpiledFolder);
-        } catch (error) {
-          console.log(error);
+  less() {
+    return new Promise(async (resolve, reject) => {
+      let files, widgetsLessFiles, themeLessFiles;
+      const lessPath = path.join(this.config.transpiledFolder, 'less');
+      const commonCSSOutputPath = path.join(lessPath, 'common.css');
+      const themeCSSOutputPath = path.join(lessPath, 'base.css');
+
+      const bootstrapPath = path.join(
+        __dirname,
+        "node_modules",
+        "occ-custom-bootstrap-less",
+        "less",
+        "bootstrap.less"
+      );
+
+      try {
+        await fs.ensureDir(lessPath);
+        files = await new Files();
+        widgetsLessFiles = await files.findFiles(["widgets"], ["less"]);
+        themeLessFiles = await files.findFiles(["less"], ["less"]);
+      } catch (error) {
+        console.log(error);
+        reject(error);
+        throw new Error(error);
+      }
+
+      const importWidgetsLessFiles = widgetsLessFiles.map(
+        lessFile => `@import "${lessFile}";`
+      ).join("")
+      const importThemeLessFiles = themeLessFiles.map(
+        lessFile => `@import "${lessFile}";`
+      ).join("");
+
+      const commonLessSource = () => {
+        let lessSourceToRender = '';
+        lessSourceToRender += `/*__proxy_delete__*/@import "${bootstrapPath}";/*__proxy_delete_end__*/`;
+        lessSourceToRender += importWidgetsLessFiles;
+        lessSourceToRender += `/*__proxy_delete__*/${importThemeLessFiles}/*__proxy_delete_end__*/`;
+        return lessSourceToRender;
+      }
+      
+      const themeLessSource = () => {
+        let lessSourceToRender = '';
+        lessSourceToRender += `/*__proxy_delete__*/@import "${bootstrapPath}";/*__proxy_delete_end__*/`;
+        lessSourceToRender += `${importThemeLessFiles}`;
+        return lessSourceToRender;
+      }
+
+      const generateCSS = ({lessSourceToRender, outputFile, changedFile, type}) => {
+        return new Promise(async (resolve, reject) => {
+          console.log(`===> processing less files for the "${type}"`);
+          if (changedFile) {
+            console.log(`===> processing less file ${changedFile}`);
+          }
+          try {
+            const rendered = await less.render(lessSourceToRender);
+            let code = rendered.css;
+            code = code.replace(/\/\*__proxy_delete__\*\/[^]+?\/\*__proxy_delete_end__\*\//gm, '');
+            await fs.writeFile(outputFile, code);
+            console.log(`===> ${type}'s less processed`);
+            console.log(`===> ${type}'s file saved at: ${outputFile}\n`);
+            resolve();
+          } catch (error) {
+            console.log("===> error on less process");
+            console.log(error);
+            reject();
+          }
+        });
+      };
+
+      try {
+        await generateCSS({ lessSourceToRender: commonLessSource(), outputFile: commonCSSOutputPath, type: 'widgets'});
+        await generateCSS({ lessSourceToRender: themeLessSource(), outputFile: themeCSSOutputPath, type: 'theme'});
+      } catch (error) {
+      }
+      
+      this.lessWatcher = chokidar.watch(widgetsLessFiles);
+      this.lessWatcher.on("change", changedFile => {
+        const isThemeFile = !/widgets/.test(changedFile);
+        const options = {
+          lessSourceToRender: isThemeFile ? themeLessSource() : commonLessSource(), 
+          outputFile: isThemeFile ? themeCSSOutputPath : commonCSSOutputPath, 
+          type: isThemeFile ? 'theme' : 'widgets',
+          changedFile
         }
-
-        setTimeout(callback, 200);
+        
+        generateCSS(options);
       });
+
+      resolve();
     });
   }
 
   js() {
     return new Promise(async (resolve, reject) => {
-      let files, widgetsFiles, appLevelFiles, appLevelIndexTemplate;
+      let files,
+        widgetsJsFiles,
+        appLevelFiles,
+        appLevelIndexTemplate;
+      const widgetJsIndexContent = this.widgetJsIndexContent;
 
       try {
         files = await new Files();
-        widgetsFiles = await files.findFiles(["widgets"], ["js"]);
+        widgetsJsFiles = await files.findFiles(["widgets"], ["js"]);
         appLevelFiles = await files.findFiles(["app-level"], ["js"]);
         appLevelIndexTemplate = await fs.readFile(
           path.join(__dirname, "templates", "app-level-index.js"),
@@ -98,7 +201,7 @@ class Transpiler {
         throw new Error(error);
       }
 
-      const entries = widgetsFiles
+      const entries = widgetsJsFiles
         .filter(file => !/view-models|models|\.min/.test(file))
         .map(file => {
           let outputFile = "";
@@ -156,7 +259,6 @@ class Transpiler {
         });
       });
 
-      const widgetJsIndexContent = this.widgetJsIndexContent;
       const occResolverPlugin = () => {
         return {
           name: "occ-resolver-plugin", // this name will show up in warnings and errors
@@ -293,10 +395,12 @@ exports.preprocessors = {
     return true;
   },
   async resolve() {
-    const transpiler = await new Transpiler();
+    const transpiler =  new Transpiler();
 
     try {
+      await transpiler.setConfigs();
       await transpiler.js();
+      await transpiler.less();
     } catch (error) {
       Promise.reject(error);
     }
