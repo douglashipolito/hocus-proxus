@@ -42,7 +42,7 @@ exports.beforeSendRequest = {
       const filePath = foundJsFiles.find(file => {
         if (/element/.test(file)) {
           const elementName = file.split(path.sep).reverse()[1];
-          return elementName === requestedFileName;
+          return requestDetail.url.includes(elementName);
         }
 
         return (
@@ -55,12 +55,22 @@ exports.beforeSendRequest = {
       let fileContent = "";
 
       if (filePath) {
+        if(requestDetail.url.includes('widget')) {
+          const localWidgetName = filePath.split(path.sep).reverse()[1];
+
+          if(!requestDetail.url.includes(localWidgetName)) {
+            return null;
+          }
+        }
+
         try {
           fileContent = await fs.readFile(filePath);
         } catch (error) {
           console.log("Error on loading ", filePath);
           Promise.reject(error);
         }
+
+        console.log(`===> replacing "${requestDetail.url}" by "${filePath}"...`);
 
         return {
           response: {

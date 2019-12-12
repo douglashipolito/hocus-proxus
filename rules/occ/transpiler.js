@@ -126,7 +126,7 @@ class Transpiler {
         lessSourceToRender += `/*__proxy_delete__*/${importThemeLessFiles}/*__proxy_delete_end__*/`;
         return lessSourceToRender;
       }
-      
+
       const themeLessSource = () => {
         let lessSourceToRender = '';
         lessSourceToRender += `/*__proxy_delete__*/@import "${bootstrapPath}";/*__proxy_delete_end__*/`;
@@ -161,17 +161,17 @@ class Transpiler {
         await generateCSS({ lessSourceToRender: themeLessSource(), outputFile: themeCSSOutputPath, type: 'theme'});
       } catch (error) {
       }
-      
+
       this.lessWatcher = chokidar.watch(widgetsLessFiles);
       this.lessWatcher.on("change", changedFile => {
         const isThemeFile = !/widgets/.test(changedFile);
         const options = {
-          lessSourceToRender: isThemeFile ? themeLessSource() : commonLessSource(), 
-          outputFile: isThemeFile ? themeCSSOutputPath : commonCSSOutputPath, 
+          lessSourceToRender: isThemeFile ? themeLessSource() : commonLessSource(),
+          outputFile: isThemeFile ? themeCSSOutputPath : commonCSSOutputPath,
           type: isThemeFile ? 'theme' : 'widgets',
           changedFile
         }
-        
+
         generateCSS(options);
       });
 
@@ -259,13 +259,17 @@ class Transpiler {
         });
       });
 
+      // We will enforce the / in the end of some requests because OCC consider / in the beginning as external, not internal.
+      const EXTERNAL_ABSOLUTE_PATH_REPLACER = "__OCC_EXTERNAL_DEPENDENCY__";
+
       const occResolverPlugin = () => {
         return {
           name: "occ-resolver-plugin", // this name will show up in warnings and errors
           resolveId: source => {
+            // /oe-files and /file are external dependency, marking them as external
             if (/\/oe-files|\/file/.test(source)) {
               return {
-                id: source.replace("/", ""),
+                id: source.replace("/", EXTERNAL_ABSOLUTE_PATH_REPLACER),
                 external: true
               };
             }
@@ -304,6 +308,11 @@ class Transpiler {
               );
             }
             return null; // other ids should be handled as usually
+          },
+          generateBundle(options, bundle) {
+            Object.keys(bundle).forEach(file => {
+              bundle[file].code = bundle[file].code.replace(new RegExp(EXTERNAL_ABSOLUTE_PATH_REPLACER, 'g'), '/')
+            })
           }
         };
       };
@@ -331,6 +340,7 @@ class Transpiler {
         },
         plugins: [
           progress(),
+
           multiInput(),
           occResolverPlugin(),
           amd(),
