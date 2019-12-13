@@ -10,7 +10,7 @@ module.exports = async proxyOptions => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Content-type", "text/plain");
       fs.readFile(
-        path.join(__dirname, "util", "proxy.pac"),
+        path.join(__dirname, "templates", "proxy.pac"),
         { encoding: "utf8" },
         (error, data) => {
           if (error) {

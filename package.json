@@ -32,7 +32,6 @@
   "dependencies": {
     "anyproxy": "^4.1.0",
     "async-exit-hook": "^2.0.1",
-    "cheerio": "^1.0.0-rc.3",
     "co": "^4.6.0",
     "fs-extra": "^8.1.0",
     "http-parser-js": "^0.5.2",
@@ -40,7 +39,6 @@
     "jsesc": "^2.5.2",
     "lan-settings": "^1.0.0-beta4",
     "lodash": "^4.17.15",
-    "require-all": "^3.0.0",
     "thunkify": "^2.1.2"
   },
   "devDependencies": {
