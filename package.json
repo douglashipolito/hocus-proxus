@@ -39,7 +39,8 @@
     "jsesc": "^2.5.2",
     "lan-settings": "^1.0.0-beta4",
     "lodash": "^4.17.15",
-    "thunkify": "^2.1.2"
+    "thunkify": "^2.1.2",
+    "uglify-js": "^2.6.0"
   },
   "devDependencies": {
     "jest": "^24.9.0"
