@@ -6,26 +6,20 @@ module.exports = async proxyOptions => {
   // Proxy Pac
   proxyOptions.proxyServer.webServerInstance.app.get(
     "/proxy.pac",
-    (req, res) => {
+    async (req, res) => {
+      let proxyPacContent = '';
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Content-type", "text/plain");
-      fs.readFile(
-        path.join(__dirname, "templates", "proxy.pac"),
-        { encoding: "utf8" },
-        (error, data) => {
-          if (error) {
-            console.log(error);
-            return res.end("Error on requesting proxy pac");
-          }
 
-          data = data.replace(
-            /#PROXY/g,
-            `${proxyOptions.internalIp}:${proxyOptions.config.proxyPort}`
-          );
-          data = data.replace(/#DOMAIN/g, proxyOptions.config.domain);
-          res.end(data);
-        }
-      );
+      try {
+        proxyPacContent =  await fs.readFile(proxyOptions.proxyPacFilePath, { encoding: "utf8" });
+      } catch(error) {
+        const errorMessage = `Error on loading ${proxyOptions.proxyPacFilePath}`;
+        console.log(errorMessage, error);
+        return res.end({ error: true, message: errorMessage });
+      }
+
+      res.end(proxyPacContent);
     }
   );
 

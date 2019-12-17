@@ -1,5 +1,4 @@
 const fs = require('fs-extra');
-const jsesc = require('jsesc');
 const promisify = require('util').promisify;
 const path = require('path');
 const _ = require("lodash");
@@ -10,6 +9,36 @@ class Rule {
     this.beforeSendRequest = [];
     this.beforeSendResponse = [];
     this.preprocessors = [];
+  }
+
+  getRulesConfig() {
+    return new Promise(async (resolve, reject) => {
+      const serverOptions = this.serverOptions;
+      const rulesConfigFile = serverOptions.rulesConfigFile;
+
+      try {
+        resolve(await fs.readJSON(rulesConfigFile));
+      } catch(error) {
+        reject(error);
+      }
+    });
+  }
+
+  updateRuleConfig(config = {}) {
+    return new Promise(async (resolve, reject) => {
+      const serverOptions = this.serverOptions;
+      const rulesConfigFile = serverOptions.rulesConfigFile;
+
+      try {
+        await this.ensureBaseConfig();
+        const currentConfig = await fs.readJSON(rulesConfigFile);
+        _.defaultsDeep(config, currentConfig);
+        await fs.writeJSON(rulesConfigFile, config, { spaces: 2 });
+        resolve(config);
+      } catch(error) {
+        return reject(error);
+      }
+    });
   }
 
   loadRules() {
@@ -47,24 +76,52 @@ class Rule {
     });
   }
 
-  setRules() {
+  ensureBaseConfig() {
     return new Promise(async (resolve, reject) => {
-        const serverOptions = this.serverOptions;
-        const rulesConfigFile = serverOptions.rulesConfigFile;
-        const exampleRulePath = serverOptions.exampleRulePath;
+      const serverOptions = this.serverOptions;
+      const rulesConfigFile = serverOptions.rulesConfigFile;
 
       try {
-        await fs.ensureDir(serverOptions.rulesPath);
         const configExists = await fs.exists(rulesConfigFile);
-        const exampleRuleExists = await fs.exists(exampleRulePath);
 
         if(!configExists) {
           await fs.copy(path.join(__dirname, 'templates', 'config.json'), rulesConfigFile);
         }
 
+        resolve(true);
+      } catch(error) {
+        return reject(error);
+      }
+    });
+  }
+
+  ensureBaseExampleRule() {
+    return new Promise(async (resolve, reject) => {
+      const serverOptions = this.serverOptions;
+        const exampleRulePath = serverOptions.exampleRulePath;
+
+      try {
+        const exampleRuleExists = await fs.exists(exampleRulePath);
+
         if(!exampleRuleExists) {
           await fs.copy(path.join(__dirname, 'templates', 'example-rule'), exampleRulePath);
         }
+
+        resolve(true);
+      } catch(error) {
+        return reject(error);
+      }
+    });
+  }
+
+  setRules() {
+    return new Promise(async (resolve, reject) => {
+        const serverOptions = this.serverOptions;
+
+      try {
+        await fs.ensureDir(serverOptions.rulesPath);
+        await this.ensureBaseConfig();
+        await this.ensureBaseExampleRule();
 
         this.rules = await this.loadRules();
       } catch(error) {
@@ -202,47 +259,4 @@ class Rule {
   }
 }
 
-module.exports = async function(serverOptions) {
-  const rule = new Rule(serverOptions);
-
-  try {
-    await rule.setRules();
-  } catch(error) {
-    console.log('Error on setting the rules', error);
-    process.exit(0);
-  }
-
-  return {
-    async preprocessors() {
-      return await rule.processRules({ serverOptions, type: "preprocessors" });
-    },
-    async beforeSendRequest(requestDetail) {
-      return await rule.processRules({
-        serverOptions,
-        type: "beforeSendRequest",
-        requestDetail
-      });
-    },
-    async beforeSendResponse(requestDetail, responseDetail) {
-      const processedRuleData = await rule.processRules({
-        serverOptions,
-        type: "beforeSendResponse",
-        requestDetail,
-        responseDetail
-      });
-
-      _.defaultsDeep(processedRuleData, responseDetail);
-      const setCookiesHeader = processedRuleData.response.header["Set-Cookie"];
-
-      // Encodes any unicode character
-      // This comes from Incapsula
-      if (setCookiesHeader && Array.isArray(setCookiesHeader)) {
-        processedRuleData.response.header["Set-Cookie"] = setCookiesHeader.map(cookie =>
-          jsesc(cookie)
-        );
-      }
-
-      return processedRuleData;
-    }
-  };
-};
+module.exports = Rule;
