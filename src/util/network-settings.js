@@ -1,5 +1,4 @@
 const fs = require("fs-extra");
-const lan = require("lan-settings");
 const path = require("path");
 const systemWideProxy = require("./system-wide-proxy");
 const ip = require("ip");
@@ -50,19 +49,30 @@ module.exports = {
   setAutomaticProxyConfig({ enable, proxyPac, domain, ip, port }) {
     return new Promise(async (resolve, reject) => {
       try {
+        let lan;
+
+        try {
+          lan = require("lan-settings");
+        } catch(error) {
+          console.log(`\n\n====> Please set your Automatic Proxy configuration manually, we cannot set this automatically in your system. <=====\n\n`);
+          console.log(`====> Proxy Pac File path: ${proxyPac.url}\n`);
+        }
+
         await this.setProxyPacFile({ proxyPac, domain, ip, port });
 
-        await lan.setSettings({
-          autoConfig: enable,
-          autoConfigUrl: proxyPac.url
-        });
+        if(lan) {
+          await lan.setSettings({
+            autoConfig: enable,
+            autoConfigUrl: proxyPac.url
+          });
 
-        if (enable) {
-          console.log(
-            `\n===> Proxy Auto Config enabled and set to ${proxyPac.url}\n`
-          );
-        } else {
-          console.log(`\n===> Proxy Auto Config disabled\n`);
+          if (enable) {
+            console.log(
+              `\n===> Proxy Auto Config enabled and set to ${proxyPac.url}\n`
+            );
+          } else {
+            console.log(`\n===> Proxy Auto Config disabled\n`);
+          }
         }
 
         resolve();

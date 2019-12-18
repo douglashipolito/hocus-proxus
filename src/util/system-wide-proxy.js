@@ -44,6 +44,24 @@ function execSync(cmd) {
  * export http_proxy
  * ------------------------------------------------------------------------
  */
+const linuxProxyManager = {};
+
+linuxProxyManager.getNetworkType = () => {
+
+};
+
+
+linuxProxyManager.enableGlobalProxy = (ip, port, proxyType) => {
+
+};
+
+linuxProxyManager.disableGlobalProxy = (proxyType) => {
+
+};
+
+linuxProxyManager.getProxyState = () => {
+
+};
 
 /**
  * ------------------------------------------------------------------------
@@ -149,4 +167,10 @@ winProxyManager.getProxyState = () => ''
 
 winProxyManager.getNetworkType = () => ''
 
-module.exports = /^win/.test(process.platform) ? winProxyManager : macProxyManager;
+const platforms = {
+  'win32': winProxyManager,
+  'linux': linuxProxyManager,
+  'darwin': macProxyManager
+}
+
+module.exports = platforms[process.platform];

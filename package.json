@@ -7,7 +7,8 @@
     "hocus-proxus": "bin/hocus-proxus"
   },
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "start": "node bin/hocus-proxus"
   },
   "author": "Douglas Hipolito <me@douglashipolito.com> <https://github.com/douglashipolito>",
   "repository": {

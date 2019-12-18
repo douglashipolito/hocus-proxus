@@ -135,7 +135,7 @@ class HocusProxus {
   }
 
   async toggleSystemProxy(enable, { proxyPac, domain, ip, port } = {}) {
-    proxyPac = proxyPac ? proxyPac : {
+    proxyPac = typeof proxyPac !== 'undefined' ? proxyPac : {
       url: this.hocusProxusOptions.proxyPacFile,
       path: this.hocusProxusOptions.proxyPacFilePath
     };
