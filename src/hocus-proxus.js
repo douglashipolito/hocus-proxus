@@ -143,7 +143,7 @@ class HocusProxus {
     ip = ip ? ip : this.hocusProxusOptions.internalIp;
     port = port ? port : this.hocusProxusOptions.config.proxyPort;
 
-    return await networkSettings.toggleSystemProxy({
+    return networkSettings.toggleSystemProxy({
       enable,
       proxyPac,
       domain,
@@ -153,11 +153,11 @@ class HocusProxus {
   }
 
   async enableSystemProxy(options) {
-    this.toggleSystemProxy(true, options);
+    return this.toggleSystemProxy(true, options);
   }
 
   async disableSystemProxy(options) {
-    this.toggleSystemProxy(false, options);
+    return this.toggleSystemProxy(false, options);
   }
 
   async setWebInterfaceRoutes(hocusProxusOptions) {

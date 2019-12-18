@@ -143,6 +143,7 @@ module.exports = {
       if (!supportsAutoProxy) {
         try {
           await this.setChromeProxyPolicy(enable, proxyPac);
+          resolve();
         } catch (error) {
           reject(error);
         }
