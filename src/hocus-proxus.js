@@ -17,32 +17,29 @@ const exitHook = require("async-exit-hook");
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
     const internalIp = this.getInternalIp();
-    const hocusProxusUserPath = path.join(os.homedir(), "hocus-proxus");
+    const hocusProxusUserPath = hocusProxusOptions.hocusProxusUserPath || path.join(os.homedir(), "hocus-proxus");
     const rulesPath = path.join(hocusProxusUserPath, "rules");
+    const webInterfacePort = 8002;
 
-    const proxyConfig = {
-      proxyPort: 8001,
-      webinterfacePort: 8002,
-      domain: "example.com"
-    };
+    this.isServerRunning = true;
+    this.isProxyEnabled = true;
+    this.proxyServer = {};
 
-    const defaultOptions = {
-      isServerRunning: false,
-      proxyServer: {},
-      rulesPath,
-      rulesConfigFile: path.join(rulesPath, "config.json"),
-      exampleRulePath: path.join(rulesPath, "example-rule"),
-      internalIp,
-      proxyPacFile: `http://${internalIp}:${proxyConfig.webinterfacePort}/proxy.pac`,
-      proxyPacFilePath: path.join(hocusProxusUserPath, "proxy.pac"),
-      isProxyEnabled: true,
-      config: proxyConfig
-    };
-
-    this.hocusProxusOptions = _.defaultsDeep(
-      defaultOptions,
-      hocusProxusOptions
+    this.hocusProxusOptions = _.defaultsDeep(hocusProxusOptions,
+      {
+        hocusProxusUserPath,
+        proxyPort: 8001,
+        webInterfacePort,
+        domain: "example.com",
+        rulesPath,
+        rulesConfigFile: path.join(rulesPath, "config.json"),
+        exampleRulePath: path.join(rulesPath, "example-rule"),
+        internalIp,
+        proxyPacFile: `http://${internalIp}:${webInterfacePort}/proxy.pac`,
+        proxyPacFilePath: path.join(hocusProxusUserPath, "proxy.pac")
+      }
     );
+
     this.rule = new Rule(this.hocusProxusOptions);
 
     process
@@ -68,15 +65,15 @@ class HocusProxus {
         await this.enableSystemProxy();
         console.log(
           `===> Proxy Options:
-          - Status: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.config.webinterfacePort}/proxy-enabled
-          - Enable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.config.webinterfacePort}/proxy-enabled/true
-          - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.config.webinterfacePort}/proxy-enabled/false\n`
+          - Status: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled
+          - Enable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/true
+          - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/false\n`
         );
 
         await this.startProxyServer();
 
         // Setting custom routes for the Web Interface
-        await this.setWebInterfaceRoutes(this.hocusProxusOptions);
+        await this.setWebInterfaceRoutes();
 
         // Run Preprocessors
         await this.ruleDefinition.preprocessors();
@@ -87,7 +84,7 @@ class HocusProxus {
           try {
             await this.disableSystemProxy();
             console.log("pausing server...");
-            this.hocusProxusOptions.proxyServer.close();
+            this.proxyServer.close();
             await new Promise(resolve => setTimeout(resolve, 200));
             callback();
           } catch (error) {
@@ -105,22 +102,22 @@ class HocusProxus {
   startProxyServer() {
     return new Promise((resolve, reject) => {
       this.serverOptions = {
-        port: this.hocusProxusOptions.config.proxyPort,
+        port: this.hocusProxusOptions.proxyPort,
         rule: this.ruleDefinition,
         webInterface: {
           enable: true,
-          webPort: this.hocusProxusOptions.config.webinterfacePort
+          webPort: this.hocusProxusOptions.webInterfacePort
         },
         forceProxyHttps: true
       };
 
-      this.hocusProxusOptions.proxyServer = new AnyProxy.ProxyServer(
+      this.proxyServer = new AnyProxy.ProxyServer(
         this.serverOptions
       );
-      this.hocusProxusOptions.proxyServer.on("ready", resolve);
-      this.hocusProxusOptions.proxyServer.on("error", reject);
-      this.hocusProxusOptions.proxyServer.start();
-      this.hocusProxusOptions.isServerRunning = true;
+      this.proxyServer.on("ready", resolve);
+      this.proxyServer.on("error", reject);
+      this.proxyServer.start();
+      this.isServerRunning = true;
     });
   }
 
@@ -139,9 +136,9 @@ class HocusProxus {
       url: this.hocusProxusOptions.proxyPacFile,
       path: this.hocusProxusOptions.proxyPacFilePath
     };
-    domain = domain ? domain : this.hocusProxusOptions.config.domain;
+    domain = domain ? domain : this.hocusProxusOptions.domain;
     ip = ip ? ip : this.hocusProxusOptions.internalIp;
-    port = port ? port : this.hocusProxusOptions.config.proxyPort;
+    port = port ? port : this.hocusProxusOptions.proxyPort;
 
     return networkSettings.toggleSystemProxy({
       enable,
@@ -160,9 +157,9 @@ class HocusProxus {
     return this.toggleSystemProxy(false, options);
   }
 
-  async setWebInterfaceRoutes(hocusProxusOptions) {
+  async setWebInterfaceRoutes() {
     // Setting custom routes for the Web Interface
-    return await webInterfaceRoutes(hocusProxusOptions);
+    return await webInterfaceRoutes(this);
   }
 
   async setRules(hocusProxusOptions) {
@@ -176,22 +173,26 @@ class HocusProxus {
     return ruleDefinition(hocusProxusOptions, this.rule);
   }
 
+  listRules() {
+    return this.rule.listRules();
+  }
+
   updateRuleConfig(config = {}) {
     return new Promise(async (resolve, reject) => {
       try {
         const previousRulesConfig = await this.rule.getRulesConfig();
         const newConfig = await this.rule.updateRuleConfig(config);
         if(previousRulesConfig.domain !== newConfig.domain) {
-          this.hocusProxusOptions.config.domain = newConfig.domain;
+          this.hocusProxusOptions.domain = newConfig.domain;
 
           await networkSettings.setProxyPacFile({
             proxyPac: {
               url: this.hocusProxusOptions.proxyPacFile,
               path: this.hocusProxusOptions.proxyPacFilePath
             },
-            domain: this.hocusProxusOptions.config.domain,
+            domain: this.hocusProxusOptions.domain,
             ip: this.hocusProxusOptions.internalIp,
-            port: this.hocusProxusOptions.config.proxyPort
+            port: this.hocusProxusOptions.proxyPort
           });
         }
         resolve(newConfig);
@@ -203,6 +204,10 @@ class HocusProxus {
 
   getInternalIp() {
     return networkSettings.getIpAddress();
+  }
+
+  listConfigs() {
+    return this.rule.getRulesConfig();
   }
 }
 

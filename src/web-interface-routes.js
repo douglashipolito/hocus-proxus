@@ -2,9 +2,11 @@ const fs = require("fs-extra");
 const path = require("path");
 const networkSettings = require("./util/network-settings");
 
-module.exports = async proxyOptions => {
+module.exports = async hocusProxusInstance => {
+  const hocusProxusOptions = hocusProxusInstance.hocusProxusOptions;
+
   // Proxy Pac
-  proxyOptions.proxyServer.webServerInstance.app.get(
+  hocusProxusInstance.proxyServer.webServerInstance.app.get(
     "/proxy.pac",
     async (req, res) => {
       let proxyPacContent = '';
@@ -12,9 +14,9 @@ module.exports = async proxyOptions => {
       res.setHeader("Content-type", "text/plain");
 
       try {
-        proxyPacContent =  await fs.readFile(proxyOptions.proxyPacFilePath, { encoding: "utf8" });
+        proxyPacContent =  await fs.readFile(hocusProxusOptions.proxyPacFilePath, { encoding: "utf8" });
       } catch(error) {
-        const errorMessage = `Error on loading ${proxyOptions.proxyPacFilePath}`;
+        const errorMessage = `Error on loading ${hocusProxusOptions.proxyPacFilePath}`;
         console.log(errorMessage, error);
         return res.end({ error: true, message: errorMessage });
       }
@@ -24,7 +26,7 @@ module.exports = async proxyOptions => {
   );
 
   // Proxy control
-  proxyOptions.proxyServer.webServerInstance.app.get(
+  hocusProxusInstance.proxyServer.webServerInstance.app.get(
     "/proxy-enabled/:enabled?",
     (req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
@@ -34,18 +36,18 @@ module.exports = async proxyOptions => {
       if (enabledParam) {
         const isProxyEnabled = enabledParam.toLowerCase() === "true";
 
-        if (isProxyEnabled !== proxyOptions.isProxyEnabled) {
+        if (isProxyEnabled !== hocusProxusInstance.isProxyEnabled) {
           networkSettings.setAutomaticProxy(
             isProxyEnabled,
-            proxyOptions.proxyPacFile
+            hocusProxusOptions.proxyPacFile
           );
         }
 
-        proxyOptions.isProxyEnabled = isProxyEnabled;
+        hocusProxusInstance.isProxyEnabled = isProxyEnabled;
       }
 
       res.json({
-        enabled: proxyOptions.isProxyEnabled
+        enabled: hocusProxusInstance.isProxyEnabled
       });
     }
   );

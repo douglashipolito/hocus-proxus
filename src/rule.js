@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const promisify = require('util').promisify;
 const path = require('path');
 const _ = require("lodash");
+const readDir = promisify(fs.readdir);
 
 class Rule {
   constructor(serverOptions) {
@@ -9,6 +10,34 @@ class Rule {
     this.beforeSendRequest = [];
     this.beforeSendResponse = [];
     this.preprocessors = [];
+  }
+
+  listRules() {
+    return new Promise(async (resolve, reject) => {
+      const rulesPath = this.serverOptions.rulesPath;
+      const rules = {};
+
+      try {
+        const rulesPathExists = await fs.exists(rulesPath);
+        if(!rulesPathExists) {
+          return reject('You have no rules set yet. Please run the server once to create the basic rules.');
+        }
+
+        let allRules = await readDir(rulesPath);
+        allRules = allRules.filter(ruleName => {
+          const rulePath = path.join(rulesPath, ruleName);
+
+          if(fs.lstatSync(rulePath).isDirectory()) {
+            rules[ruleName] = rulePath;
+            return true;
+          }
+        });
+
+        resolve(rules);
+      } catch(error) {
+        reject(error);
+      }
+    });
   }
 
   getRulesConfig() {
@@ -31,8 +60,14 @@ class Rule {
 
       try {
         await this.ensureBaseConfig();
+        const allRulesNames = Object.keys(await this.listRules());
         const currentConfig = await fs.readJSON(rulesConfigFile);
         _.defaultsDeep(config, currentConfig);
+
+        if(!allRulesNames.includes(config.enabledRule)) {
+          return reject(`Rule "${config.enabledRule}" doesn't exist in the existing rules. Please provide a valid rule:\n\n${allRulesNames.join('\n')}`);
+        }
+
         await fs.writeJSON(rulesConfigFile, config, { spaces: 2 });
         resolve(config);
       } catch(error) {
@@ -45,7 +80,6 @@ class Rule {
     return new Promise(async (resolve, reject) => {
       const rulesPath = this.serverOptions.rulesPath;
       const rules = {};
-      const readDir = promisify(fs.readdir);
 
       try {
         const ruleConfig = await fs.readJSON(this.serverOptions.rulesConfigFile);
@@ -57,7 +91,7 @@ class Rule {
           if(fs.lstatSync(rulePath).isDirectory()) {
             if(ruleName === ruleConfig.enabledRule) {
               rules[ruleName] = require(rulePath);
-              this.serverOptions.config.domain = ruleConfig.domain;
+              this.serverOptions.domain = ruleConfig.domain;
               console.log(`===> Loading rules "${ruleName}" from "${rulePath}"`);
               console.log(`===> Proxying the domain "${ruleConfig.domain}`);
               return true;
