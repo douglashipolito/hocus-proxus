@@ -14,16 +14,16 @@ program
   .option('-p, --proxy-port <port>', `The Proxy Port. Default 8001`)
   .option('-d, --domain <host>', `The host to be proxied. It will use the hocus proxus config,json by default`)
   .option('-w, --web-interface-port <port>', `The Web Interface Proxy Port. Default 8002`)
-  .option('-h, --hocus-proxus-path <path>', `The Hocus Proxus Path. It is placed by default at the ${path.join(os.homedir(), 'hocus-proxus')}`)
+  .option('-j, --hocus-proxus-path <path>', `The Hocus Proxus Path. It is placed by default at the ${path.join(os.homedir(), 'hocus-proxus')}`)
   .option('-r, --proxy-pac-file <path>', `The Proxy Pac File. It is placed by default at the ${path.join(os.homedir(), 'hocus-proxus', 'proxy.pac')}`)
   .option('-l, --list-rules', `List All Available Rules`)
   .option('-g, --list-configs', `List Hocus Proxus Configs`)
   .option('-e, --enabled-rule <rule-name>', `Update Enabled Rule`)
   .parse(process.argv);
 
-const validServerOptions = ['domain', 'rulesPath', 'rulesConfigFile', 'internalIp', 'proxyPort', 'webInterfacePort', 'hocusProxusPath', 'proxyPacFile'];
-const validConfigOptions = ['enabledRule', 'listRules', 'listConfigs'];
-let hasConfigOptions = validConfigOptions.some(option => typeof program[option] !== 'unefined');
+const validServerOptions = ['rulesPath', 'rulesConfigFile', 'internalIp', 'proxyPort', 'webInterfacePort', 'hocusProxusPath', 'proxyPacFile'];
+const validConfigOptions = ['enabledRule', 'listRules', 'listConfigs', 'domain'];
+let hasConfigOptions = validConfigOptions.some(option => typeof program[option] !== 'unefined' && program[option]);
 
 validServerOptions.forEach(option => {
   if(program[option]) {
@@ -45,10 +45,10 @@ const configPromises = validConfigOptions.map(option => {
   if(program[option]) {
     return new Promise(async (resolve, reject) => {
       try {
-        if(option === 'enabledRule') {
+        if(option === 'enabledRule' || option === 'domain') {
           return resolve({
             option,
-            result: await proxy.updateRuleConfig({ enabledRule: program[option] })
+            result: await proxy.updateRuleConfig({ [option]: program[option] })
           });
         }
 
