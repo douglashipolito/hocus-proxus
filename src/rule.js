@@ -5,8 +5,9 @@ const _ = require("lodash");
 const readDir = promisify(fs.readdir);
 
 class Rule {
-  constructor(serverOptions) {
+  constructor(serverOptions, server) {
     this.serverOptions = serverOptions;
+    this.server = server;
     this.beforeSendRequest = [];
     this.beforeSendResponse = [];
     this.preprocessors = [];
@@ -93,7 +94,6 @@ class Rule {
               rules[ruleName] = require(rulePath);
               this.serverOptions.domain = ruleConfig.domain;
               console.log(`===> Loading rules "${ruleName}" from "${rulePath}"`);
-              console.log(`===> Proxying the domain "${ruleConfig.domain}`);
               return true;
             }
           }
@@ -222,6 +222,7 @@ class Rule {
             _.defaultsDeep(
               globalResponse,
               await rule.resolve({
+                server: this.server,
                 serverOptions,
                 requestDetail,
                 responseDetail
@@ -256,6 +257,7 @@ class Rule {
 
             try {
               ruleData = await rule.resolve({
+                server: this.server,
                 serverOptions,
                 requestDetail,
                 responseDetail

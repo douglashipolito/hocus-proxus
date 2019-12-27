@@ -42,7 +42,7 @@ class HocusProxus {
       }
     );
 
-    this.rule = new Rule(this.hocusProxusOptions);
+    this.rule = new Rule(this.hocusProxusOptions, this);
 
     process
       .on("unhandledRejection", (reason, p) => {
@@ -64,7 +64,17 @@ class HocusProxus {
           await this.rootCACheck();
         }
 
+        await this.startProxyServer();
+
+        // Setting custom routes for the Web Interface
+        await this.setWebInterfaceRoutes();
+
+        // Run Preprocessors
+        await this.ruleDefinition.preprocessors();
+
         await this.enableSystemProxy();
+
+        console.log(`===> Proxying the domain "${this.hocusProxusOptions.domain}`);
         console.log(
           `===> Proxy Options:
           - Status: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled
@@ -82,14 +92,6 @@ class HocusProxus {
           console.log('An Error has been found while Hocus Proxus was trying to generate the QR CODE. However your proxy will start normally.');
           console.log('This is the error.', error);
         }
-
-        await this.startProxyServer();
-
-        // Setting custom routes for the Web Interface
-        await this.setWebInterfaceRoutes();
-
-        // Run Preprocessors
-        await this.ruleDefinition.preprocessors();
 
         //On Exit
         exitHook(async callback => {
