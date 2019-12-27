@@ -217,42 +217,30 @@ class Rule {
 
       if (types[type]) {
         try {
-          await Promise.all(
-            types[type]
-              .filter(rule => rule.global)
-              .map(rule => {
-                return new Promise(async resolve => {
-                  _.defaultsDeep(
-                    globalResponse,
-                    await rule.resolve({
-                      serverOptions,
-                      requestDetail,
-                      responseDetail
-                    })
-                  );
-                  resolve();
-                });
+          const globalRules = types[type].filter(rule => rule.global);
+          for await (const rule of globalRules) {
+            _.defaultsDeep(
+              globalResponse,
+              await rule.resolve({
+                serverOptions,
+                requestDetail,
+                responseDetail
               })
-          );
+            );
+          }
 
-          foundRules = await Promise.all(
-            types[type]
-              .filter(rule => !rule.global)
-              .map(rule => {
-                return new Promise(async resolve => {
-                  const shouldResolve = await rule.shouldResolve({
-                    requestDetail,
-                    responseDetail
-                  });
+          const nonRules = types[type].filter(rule => !rule.global);
+          for await (const rule of nonRules) {
+            const shouldResolve = await rule.shouldResolve({
+              requestDetail,
+              responseDetail
+            });
 
-                  if (shouldResolve) {
-                    return resolve(rule);
-                  }
+            if (shouldResolve) {
+              foundRules.push(rule);
+            }
+          }
 
-                  resolve();
-                });
-              })
-          );
         } catch(error) {
           return reject(error);
         }
@@ -262,25 +250,22 @@ class Rule {
         let resolveData = {};
 
         try {
-          await Promise.all(
-            foundRules
-              .filter(rule => !!rule)
-              .map(async rule => {
-                let ruleData = {};
+          const allRules = foundRules.filter(rule => !!rule);
+          for await (const rule of allRules) {
+            let ruleData = {};
 
-                try {
-                  ruleData = await rule.resolve({
-                    serverOptions,
-                    requestDetail,
-                    responseDetail
-                  });
-                } catch (error) {
-                  throw new Error(error);
-                }
+            try {
+              ruleData = await rule.resolve({
+                serverOptions,
+                requestDetail,
+                responseDetail
+              });
+            } catch (error) {
+              throw new Error(error);
+            }
 
-                _.defaultsDeep(resolveData, ruleData);
-              })
-          );
+            _.defaultsDeep(resolveData, ruleData);
+          }
         } catch(error) {
           reject(error);
         }
