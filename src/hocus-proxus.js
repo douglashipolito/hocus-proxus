@@ -13,6 +13,7 @@ const webInterfaceRoutes = require("./web-interface-routes");
 const rootCACheck = require("./util/root-ca-check");
 const networkSettings = require("./util/network-settings");
 const exitHook = require("async-exit-hook");
+const qrcode = require('qrcode-terminal');
 
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
@@ -27,6 +28,7 @@ class HocusProxus {
 
     this.hocusProxusOptions = _.defaultsDeep(hocusProxusOptions,
       {
+        debug: false,
         hocusProxusUserPath,
         proxyPort: 8001,
         webInterfacePort,
@@ -70,6 +72,17 @@ class HocusProxus {
           - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/false\n`
         );
 
+        try {
+          const downloadCertQRCode = await this.printQRCode(`http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/downloadCrt`);
+          console.log(
+            `===> QR CODE - Use the following QR Code in your cell phone to download the certificate and trust it:\n`
+          );
+          console.log(downloadCertQRCode);
+        } catch(error) {
+          console.log('An Error has been found while Hocus Proxus was trying to generate the QR CODE. However your proxy will start normally.');
+          console.log('This is the error.', error);
+        }
+
         await this.startProxyServer();
 
         // Setting custom routes for the Web Interface
@@ -108,7 +121,8 @@ class HocusProxus {
           enable: true,
           webPort: this.hocusProxusOptions.webInterfacePort
         },
-        forceProxyHttps: true
+        forceProxyHttps: true,
+        silent: !this.hocusProxusOptions.debug
       };
 
       this.proxyServer = new AnyProxy.ProxyServer(
@@ -208,6 +222,20 @@ class HocusProxus {
 
   listConfigs() {
     return this.rule.getRulesConfig();
+  }
+
+  printQRCode(data) {
+    return new Promise((resolve, reject) => {
+      if(!data) {
+        return reject('Please provide a string for the QR Code');
+      }
+
+      try {
+        qrcode.generate(data, { small: true }, resolve);
+      } catch(error) {
+        reject(error);
+      }
+    });
   }
 }
 
