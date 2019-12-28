@@ -19,7 +19,7 @@ class HocusProxus {
   constructor(hocusProxusOptions = {}) {
     const internalIp = this.getInternalIp();
     const hocusProxusUserPath = hocusProxusOptions.hocusProxusUserPath || path.join(os.homedir(), "hocus-proxus");
-    const rulesPath = path.join(hocusProxusUserPath, "rules");
+    const rulesPath = hocusProxusOptions.rulesPath || path.join(hocusProxusUserPath, "rules");
     const webInterfacePort = 8002;
 
     this.isServerRunning = true;
@@ -36,6 +36,7 @@ class HocusProxus {
         rulesPath,
         rulesConfigFile: path.join(hocusProxusUserPath, "rules-config.json"),
         exampleRulePath: path.join(rulesPath, "example-rule"),
+        enabledRule: null,
         internalIp,
         proxyPacFile: `http://${internalIp}:${webInterfacePort}/proxy.pac`,
         proxyPacFilePath: path.join(hocusProxusUserPath, "proxy.pac")

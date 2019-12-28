@@ -122,6 +122,14 @@ class Rule {
           await fs.copy(path.join(__dirname, 'templates', 'config.json'), rulesConfigFile);
         }
 
+        const config = await fs.readJSON(rulesConfigFile);
+        config.domain = serverOptions.domain;
+
+        if(serverOptions.enabledRule) {
+          config.enabledRule = serverOptions.enabledRule;
+        }
+
+        await fs.writeJSON(rulesConfigFile, config, { spaces: 2 });
         resolve(true);
       } catch(error) {
         return reject(error);
@@ -155,7 +163,10 @@ class Rule {
       try {
         await fs.ensureDir(serverOptions.rulesPath);
         await this.ensureBaseConfig();
-        await this.ensureBaseExampleRule();
+
+        if(!serverOptions.enabledRule) {
+          await this.ensureBaseExampleRule();
+        }
 
         this.rules = await this.loadRules();
       } catch(error) {
