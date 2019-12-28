@@ -34,7 +34,7 @@ class HocusProxus {
         webInterfacePort,
         domain: "example.com",
         rulesPath,
-        rulesConfigFile: path.join(rulesPath, "config.json"),
+        rulesConfigFile: path.join(hocusProxusUserPath, "rules-config.json"),
         exampleRulePath: path.join(rulesPath, "example-rule"),
         internalIp,
         proxyPacFile: `http://${internalIp}:${webInterfacePort}/proxy.pac`,
