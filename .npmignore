@@ -25,8 +25,8 @@ rule_sample
 test
 *.tgz
 docs
-.eslint
 .prettier
 .editorconfig
 __tests__
-
+.eslintrc
+jest.config.js
