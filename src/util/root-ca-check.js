@@ -34,7 +34,7 @@ class RootCACheck {
       } catch (e) {
         this.server.logger.error(e);
       }
-    }.bind(this));
+    }.bind(this))();
   }
 }
 

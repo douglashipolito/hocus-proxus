@@ -159,7 +159,7 @@ class HocusProxus {
   getCAStatus() {
     return co.wrap(function*(val) {
       return yield AnyProxy.utils.certMgr.getCAStatus();
-    });
+    })();
   }
 
   async toggleSystemProxy(enable, { proxyPac, domain, ip, port } = {}) {
