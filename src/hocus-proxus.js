@@ -18,9 +18,19 @@ const qrcode = require('qrcode-terminal');
 
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
+    const logScope = 'hoxus-proxus';
     this.logger = new Signale({
-      scope: 'hocus-proxus'
+      scope: logScope
     });
+
+    this.logger.interactive = () => {
+      return new Signale({
+        scope: logScope,
+        interactive: true
+      });
+    };
+
+    this.Signale = Signale;
 
     this.networkSettings = new NetworkSettings(this);
     this.rootCACheck = new RootCACheck(this);
