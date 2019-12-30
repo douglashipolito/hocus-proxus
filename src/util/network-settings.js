@@ -6,10 +6,15 @@ const exec = promisify(child_process.exec);
 const ip = require("ip");
 let displayedAutoProxySupportMessage = false;
 
-module.exports = {
+class NetworkSettings {
+  constructor(server) {
+    this.server = server;
+  }
+
   getIpAddress() {
     return ip.address();
-  },
+  }
+
   setProxyPacFile({
     proxyPac,
     domain = "localhost",
@@ -42,11 +47,12 @@ module.exports = {
         await fs.writeFile(proxyPac.path, proxyPacContent);
         resolve(proxyPacContent);
       } catch (error) {
-        console.log("===> Proxy Lan Settings: ", error);
+        this.server.logger.error(" Proxy Lan Settings: ", error);
         reject(error);
       }
     });
-  },
+  }
+
   setChromeProxyPolicy(enable, proxyPac) {
     const chromePolicyFile = "hocus-proxy-policy.json";
     const chromePolicyPath = {
@@ -68,15 +74,15 @@ module.exports = {
           );
 
           if (!(await fs.exists(currentOSChromePolicyPath))) {
-            console.log(
-              `\n===> Creating Chrome Policy managed folder at ${currentOSChromePolicyPath}\n`
+            this.server.logger.info(
+              `Creating Chrome Policy managed folder at ${currentOSChromePolicyPath}`
             );
             await exec(`sudo mkdir -p ${currentOSChromePolicyPath}`);
           }
 
           if (enable) {
-            console.log(
-              `\n===> Enabling Proxy Policy in the file: ${policyFullPath}\n`
+            this.server.logger.info(
+              `Enabling Proxy Policy in the file: ${policyFullPath}`
             );
             await exec(
               `echo '${JSON.stringify(
@@ -85,8 +91,8 @@ module.exports = {
             );
           } else {
             if (await fs.exists(policyFullPath)) {
-              console.log(
-                `\n===> Removing Proxy Policy file: ${ProxyPolicy.ProxyPacUrl}\n`
+              this.server.logger.info(
+                `Removing Proxy Policy file: ${ProxyPolicy.ProxyPacUrl}`
               );
               await exec(`sudo rm ${policyFullPath}`);
             }
@@ -99,7 +105,8 @@ module.exports = {
         reject("Platform not supported");
       }
     });
-  },
+  }
+
   setAutomaticProxyConfig({ enable, proxyPac, domain, ip, port }) {
     return new Promise(async (resolve, reject) => {
       let supportsAutoProxy = true;
@@ -119,21 +126,21 @@ module.exports = {
         });
 
         if (enable) {
-          console.log(
-            `\n===> Proxy Auto Config enabled and set to ${proxyPac.url}\n`
+          this.server.logger.success(
+            `Proxy Auto Config enabled and set to ${proxyPac.url}`
           );
         } else {
-          console.log(`\n===> Proxy Auto Config disabled\n`);
+          this.server.logger.success(`Proxy Auto Config disabled`);
         }
 
         return resolve();
       } catch (error) {
         if (!displayedAutoProxySupportMessage) {
-          console.log(
-            `\n\n====> We can't set the Auto Config URL(Proxy Pac) for your system. Trying to set through Google Chrome policies. <=====\n\n`
+          this.server.logger.error(
+            `We can't set the Auto Config URL(Proxy Pac) for your system. Trying to set through Google Chrome policies`
           );
-          console.log(
-            `====> This is the Proxy Pac file url if you want to set this manually: ${proxyPac.url}\n`
+          this.server.logger.error(
+            `This is the Proxy Pac file url if you want to set this manually: ${proxyPac.url}`
           );
         }
         supportsAutoProxy = false;
@@ -149,7 +156,8 @@ module.exports = {
         }
       }
     });
-  },
+  }
+
   toggleSystemProxy({ enable, proxyPac, domain, ip, port }) {
     return new Promise(async (resolve, reject) => {
       try {
@@ -162,11 +170,12 @@ module.exports = {
         });
         resolve();
       } catch (error) {
-        console.log("===> Proxy Lan Settings: ", error);
+        this.server.logger.error(" Proxy Lan Settings: ", error);
         reject(error);
       }
     });
-  },
+  }
+
   enableSystemProxy({ proxyPac, domain, ip, port, type }) {
     return new Promise(async (resolve, reject) => {
       try {
@@ -183,7 +192,8 @@ module.exports = {
         reject(error);
       }
     });
-  },
+  }
+
   disableSystemProxy({ proxyPac, domain, ip, port, type }) {
     return new Promise(async (resolve, reject) => {
       try {
@@ -201,4 +211,6 @@ module.exports = {
       }
     });
   }
-};
+}
+
+module.exports = NetworkSettings;

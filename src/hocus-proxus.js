@@ -5,18 +5,26 @@ process.binding(
 const os = require("os");
 const co = require("co");
 const path = require("path");
+const { Signale } = require('signale');
 const AnyProxy = require("anyproxy");
 const _ = require("lodash");
 const Rule = require("./rule");
 const ruleDefinition = require("./rule-definition");
 const webInterfaceRoutes = require("./web-interface-routes");
-const rootCACheck = require("./util/root-ca-check");
-const networkSettings = require("./util/network-settings");
+const RootCACheck = require("./util/root-ca-check");
+const NetworkSettings = require("./util/network-settings");
 const exitHook = require("async-exit-hook");
 const qrcode = require('qrcode-terminal');
 
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
+    this.logger = new Signale({
+      scope: 'hocus-proxus'
+    });
+
+    this.networkSettings = new NetworkSettings(this);
+    this.rootCACheck = new RootCACheck(this);
+
     const internalIp = this.getInternalIp();
     const hocusProxusUserPath = hocusProxusOptions.hocusProxusUserPath || path.join(os.homedir(), "hocus-proxus");
     const rulesPath = hocusProxusOptions.rulesPath || path.join(hocusProxusUserPath, "rules");
@@ -47,10 +55,10 @@ class HocusProxus {
 
     process
       .on("unhandledRejection", (reason, p) => {
-        console.error(reason, "Unhandled Rejection at Promise", p);
+        this.logger.error(reason, "Unhandled Rejection at Promise", p);
       })
       .on("uncaughtException", err => {
-        console.error(err, "Uncaught Exception thrown");
+        this.logger.error(err, "Uncaught Exception thrown");
         process.exit(1);
       });
   }
@@ -62,7 +70,7 @@ class HocusProxus {
         const caStatus = await this.getCAStatus();
 
         if (!caStatus.exist && !caStatus.trusted) {
-          await this.rootCACheck();
+          await this.rootCACheck.check();
         }
 
         await this.startProxyServer();
@@ -75,31 +83,31 @@ class HocusProxus {
 
         await this.enableSystemProxy();
 
-        console.log(`===> Proxying the domain "${this.hocusProxusOptions.domain}`);
-        console.log(
-          `===> Proxy Options:
+        this.logger.info(`Proxying the domain "${this.hocusProxusOptions.domain}`);
+        this.logger.info(
+          `Proxy Options:
           - Status: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled
           - Enable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/true
-          - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/false\n`
+          - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/false`
         );
 
         try {
           const downloadCertQRCode = await this.printQRCode(`http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/downloadCrt`);
-          console.log(
-            `===> QR CODE - Use the following QR Code in your cell phone to download the certificate and trust it:\n`
+          this.logger.info(
+            `QR CODE - Use the following QR Code in your cell phone to download the certificate and trust it:`
           );
           console.log(downloadCertQRCode);
         } catch(error) {
-          console.log('An Error has been found while Hocus Proxus was trying to generate the QR CODE. However your proxy will start normally.');
-          console.log('This is the error.', error);
+          this.logger.error('An Error has been found while Hocus Proxus was trying to generate the QR CODE. However your proxy will start normally.');
+          this.logger.error('This is the error.', error);
         }
 
         //On Exit
         exitHook(async callback => {
-          console.log("disabling proxy auto config");
+          this.logger.info("disabling proxy auto config");
           try {
             await this.disableSystemProxy();
-            console.log("pausing server...");
+            this.logger.info("pausing server...");
             this.proxyServer.close();
             await new Promise(resolve => setTimeout(resolve, 200));
             callback();
@@ -138,10 +146,6 @@ class HocusProxus {
     });
   }
 
-  async rootCACheck() {
-    return await rootCACheck();
-  }
-
   getCAStatus() {
     return co.wrap(function*(val) {
       return yield AnyProxy.utils.certMgr.getCAStatus();
@@ -157,7 +161,7 @@ class HocusProxus {
     ip = ip ? ip : this.hocusProxusOptions.internalIp;
     port = port ? port : this.hocusProxusOptions.proxyPort;
 
-    return networkSettings.toggleSystemProxy({
+    return this.networkSettings.toggleSystemProxy({
       enable,
       proxyPac,
       domain,
@@ -183,7 +187,7 @@ class HocusProxus {
     try {
       await this.rule.setRules();
     } catch (error) {
-      console.log("Error on setting the rules", error);
+      this.logger.error("Error on setting the rules", error);
       process.exit(0);
     }
 
@@ -202,7 +206,7 @@ class HocusProxus {
         if(previousRulesConfig.domain !== newConfig.domain) {
           this.hocusProxusOptions.domain = newConfig.domain;
 
-          await networkSettings.setProxyPacFile({
+          await this.networkSettings.setProxyPacFile({
             proxyPac: {
               url: this.hocusProxusOptions.proxyPacFile,
               path: this.hocusProxusOptions.proxyPacFilePath
@@ -220,7 +224,7 @@ class HocusProxus {
   }
 
   getInternalIp() {
-    return networkSettings.getIpAddress();
+    return this.networkSettings.getIpAddress();
   }
 
   listConfigs() {

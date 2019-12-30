@@ -5,6 +5,10 @@ const path = require('path');
 const os = require('os');
 const HocusProxus = require('../src/hocus-proxus.js');
 const options = {};
+const { Signale } = require('signale');
+const logger = new Signale({
+  scope: 'hocus-proxus'
+});
 
 program
   .version(pjson.version, '-v, --version', 'Current Version')
@@ -32,7 +36,7 @@ validServerOptions.forEach(option => {
 });
 
 if(Object.entries(options).length === 0 && options.constructor === Object && !hasConfigOptions) {
-  console.log('Running Hocus Proxus with the default options, for more commands, type hocus-proxus --help.\n');
+  logger.note('Running Hocus Proxus with the default options, for more commands, type hocus-proxus --help.');
 }
 
 const proxy = new HocusProxus(options);
@@ -65,9 +69,8 @@ const configPromises = validConfigOptions.map(option => {
 
 Promise.all(configPromises).then(configsOutput => {
   configsOutput.forEach(config => {
-    console.log(`Output for command "${config.option}":`)
-    console.log(config.result);
-    console.log('\n');
+    logger.info(`Output for command "${config.option}":`)
+    logger.info(config.result);
   });
-}).catch(console.error);
+}).catch(logger.error);
 

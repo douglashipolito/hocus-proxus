@@ -93,7 +93,7 @@ class Rule {
             if(ruleName === ruleConfig.enabledRule) {
               rules[ruleName] = require(rulePath);
               this.serverOptions.domain = ruleConfig.domain;
-              console.log(`===> Loading rules "${ruleName}" from "${rulePath}"`);
+              this.server.logger.success(`Loaded rules "${ruleName}" from "${rulePath}"`);
               return true;
             }
           }
@@ -244,6 +244,7 @@ class Rule {
           const nonRules = types[type].filter(rule => !rule.global);
           for await (const rule of nonRules) {
             const shouldResolve = await rule.shouldResolve({
+              server: this.server,
               requestDetail,
               responseDetail
             });

@@ -11,20 +11,31 @@ function checkRootCAExists() {
   return certMgr.isRootCAFileExists();
 }
 
-module.exports = co.wrap(function*() {
-  try {
-    if (!checkRootCAExists()) {
-      console.log("Missing root CA, generating now");
-      yield thunkify(certMgr.generateRootCA)();
-      yield certMgr.trustRootCA();
-    } else {
-      const isCATrusted = yield thunkify(certMgr.ifRootCATrusted)();
-      if (!isCATrusted) {
-        console.log("ROOT CA NOT INSTALLED YET");
-        yield certMgr.trustRootCA();
-      }
-    }
-  } catch (e) {
-    console.error(e);
+class RootCACheck {
+  constructor(server) {
+    this.server = server;
   }
-});
+
+  check() {
+
+    return co.wrap(function*() {
+      try {
+        if (!checkRootCAExists()) {
+          this.server.logger.info("Missing root CA, generating now");
+          yield thunkify(certMgr.generateRootCA)();
+          yield certMgr.trustRootCA();
+        } else {
+          const isCATrusted = yield thunkify(certMgr.ifRootCATrusted)();
+          if (!isCATrusted) {
+            this.server.logger.error("ROOT CA NOT INSTALLED YET");
+            yield certMgr.trustRootCA();
+          }
+        }
+      } catch (e) {
+        this.server.logger.error(e);
+      }
+    }.bind(this));
+  }
+}
+
+module.exports = RootCACheck;
