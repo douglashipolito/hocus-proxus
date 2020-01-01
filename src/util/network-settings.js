@@ -119,6 +119,7 @@ class NetworkSettings {
 
       try {
         const lan = require("lan-settings");
+        this.server.logger.info('Setting the Auto Proxy Config. You will might be asked for your sudo password.');
 
         await lan.setSettings({
           autoConfig: enable,
