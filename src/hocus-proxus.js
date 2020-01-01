@@ -96,6 +96,8 @@ class HocusProxus {
         this.logger.info(`Proxying the domain "${this.hocusProxusOptions.domain}`);
         this.logger.info(
           `Proxy Options:
+          - Proxy Server: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.proxyPort}
+          - Proxy PAC File: ${this.hocusProxusOptions.proxyPacFile}
           - Status: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled
           - Enable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/true
           - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/false`
