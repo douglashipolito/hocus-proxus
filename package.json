@@ -1,6 +1,6 @@
 {
   "name": "hocus-proxus",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A configurable HTTP/HTTPS proxy in NodeJS",
   "main": "src/hocus-proxus.js",
   "bin": {
@@ -30,6 +30,7 @@
     "javascript"
   ],
   "dependencies": {
+    "@httptoolkit/browser-launcher": "^1.6.0",
     "anyproxy": "^4.1.0",
     "async-exit-hook": "^2.0.1",
     "co": "^4.6.0",

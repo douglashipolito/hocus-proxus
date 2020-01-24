@@ -112,14 +112,10 @@ class NetworkSettings {
       let supportsAutoProxy = true;
 
       try {
-        await this.setProxyPacFile({ proxyPac, domain, ip, port });
-      } catch (error) {
-        return reject(error);
-      }
-
-      try {
         const lan = require("lan-settings");
-        this.server.logger.info('Setting the Auto Proxy Config. You will might be asked for your sudo password.');
+        this.server.logger.info(
+          "Setting the Auto Proxy Config. You will might be asked for your sudo password."
+        );
 
         await lan.setSettings({
           autoConfig: enable,

@@ -5,7 +5,7 @@ process.binding(
 const os = require("os");
 const co = require("co");
 const path = require("path");
-const { Signale } = require('signale');
+const { Signale } = require("signale");
 const AnyProxy = require("anyproxy");
 const _ = require("lodash");
 const Rule = require("./rule");
@@ -14,11 +14,12 @@ const webInterfaceRoutes = require("./web-interface-routes");
 const RootCACheck = require("./util/root-ca-check");
 const NetworkSettings = require("./util/network-settings");
 const exitHook = require("async-exit-hook");
-const qrcode = require('qrcode-terminal');
+const qrcode = require("qrcode-terminal");
+const launcher = require("@httptoolkit/browser-launcher");
 
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
-    const logScope = 'hoxus-proxus';
+    const logScope = "hoxus-proxus";
     this.logger = new Signale({
       scope: logScope
     });
@@ -36,30 +37,44 @@ class HocusProxus {
     this.rootCACheck = new RootCACheck(this);
 
     const internalIp = this.getInternalIp();
-    const hocusProxusUserPath = hocusProxusOptions.hocusProxusUserPath || path.join(os.homedir(), "hocus-proxus");
-    const rulesPath = hocusProxusOptions.rulesPath || path.join(hocusProxusUserPath, "rules");
+    const hocusProxusUserPath =
+      hocusProxusOptions.hocusProxusUserPath ||
+      path.join(os.homedir(), "hocus-proxus");
+    const rulesPath =
+      hocusProxusOptions.rulesPath || path.join(hocusProxusUserPath, "rules");
     const webInterfacePort = 8002;
+    const proxyPacRoute = `http://${internalIp}:${webInterfacePort}/proxy.pac`;
 
     this.isServerRunning = true;
     this.isProxyEnabled = true;
     this.proxyServer = {};
 
-    this.hocusProxusOptions = _.defaultsDeep(hocusProxusOptions,
-      {
-        debug: false,
-        hocusProxusUserPath,
-        proxyPort: 8001,
-        webInterfacePort,
-        domain: "example.com",
-        rulesPath,
-        rulesConfigFile: path.join(hocusProxusUserPath, "rules-config.json"),
-        exampleRulePath: path.join(rulesPath, "example-rule"),
-        enabledRule: null,
-        internalIp,
-        proxyPacFile: `http://${internalIp}:${webInterfacePort}/proxy.pac`,
-        proxyPacFilePath: path.join(hocusProxusUserPath, "proxy.pac")
-      }
-    );
+    this.hocusProxusOptions = _.defaultsDeep(hocusProxusOptions, {
+      debug: false,
+      hocusProxusUserPath,
+      proxyPort: 8001,
+      webInterfacePort,
+      domain: "example.com",
+      useBrowser: true,
+      browserConfigs: {
+        browser: "chrome",
+        options: [
+          `--proxy-pac-url=${proxyPacRoute}`,
+          "--auto-open-devtools-for-tabs",
+          "--ignore-certificate-errors",
+          "--allow-insecure-localhost",
+          "--disable-blink-features=BlockCredentialedSubresources",
+          "--test-type"
+        ]
+      },
+      rulesPath,
+      rulesConfigFile: path.join(hocusProxusUserPath, "rules-config.json"),
+      exampleRulePath: path.join(rulesPath, "example-rule"),
+      enabledRule: null,
+      internalIp,
+      proxyPacFile: proxyPacRoute,
+      proxyPacFilePath: path.join(hocusProxusUserPath, "proxy.pac")
+    });
 
     this.rule = new Rule(this.hocusProxusOptions, this);
 
@@ -91,9 +106,9 @@ class HocusProxus {
         // Run Preprocessors
         await this.ruleDefinition.preprocessors();
 
-        await this.enableSystemProxy();
-
-        this.logger.info(`Proxying the domain "${this.hocusProxusOptions.domain}`);
+        this.logger.info(
+          `Proxying the domain "${this.hocusProxusOptions.domain}`
+        );
         this.logger.info(
           `Proxy Options:
           - Proxy Server: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.proxyPort}
@@ -103,22 +118,47 @@ class HocusProxus {
           - Disable: http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/proxy-enabled/false`
         );
 
+        if (!this.hocusProxusOptions.useBrowser) {
+          await this.enableSystemProxy();
+        } else {
+          await this.setProxyPacFile({
+            proxyPac: {
+              url: this.hocusProxusOptions.proxyPacFile,
+              path: this.hocusProxusOptions.proxyPacFilePath
+            },
+            domain: this.hocusProxusOptions.domain,
+            ip: this.hocusProxusOptions.internalIp,
+            port: this.hocusProxusOptions.proxyPort
+          });
+          await this.openBrowser(
+            this.hocusProxusOptions.domain,
+            this.hocusProxusOptions.browserConfigs
+          );
+        }
+
         try {
-          const downloadCertQRCode = await this.printQRCode(`http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/downloadCrt`);
+          const downloadCertQRCode = await this.printQRCode(
+            `http://${this.hocusProxusOptions.internalIp}:${this.hocusProxusOptions.webInterfacePort}/downloadCrt`
+          );
           this.logger.info(
             `QR CODE - Use the following QR Code in your cell phone to download the certificate and trust it:`
           );
           console.log(downloadCertQRCode);
-        } catch(error) {
-          this.logger.error('An Error has been found while Hocus Proxus was trying to generate the QR CODE. However your proxy will start normally.');
-          this.logger.error('This is the error.', error);
+        } catch (error) {
+          this.logger.error(
+            "An Error has been found while Hocus Proxus was trying to generate the QR CODE. However your proxy will start normally."
+          );
+          this.logger.error("This is the error.", error);
         }
 
         //On Exit
         exitHook(async callback => {
           this.logger.info("disabling proxy auto config");
           try {
-            await this.disableSystemProxy();
+            if (!this.hocusProxusOptions.useBrowser) {
+              await this.disableSystemProxy();
+            }
+
             this.logger.info("pausing server...");
             this.proxyServer.close();
             await new Promise(resolve => setTimeout(resolve, 200));
@@ -148,9 +188,7 @@ class HocusProxus {
         silent: !this.hocusProxusOptions.debug
       };
 
-      this.proxyServer = new AnyProxy.ProxyServer(
-        this.serverOptions
-      );
+      this.proxyServer = new AnyProxy.ProxyServer(this.serverOptions);
       this.proxyServer.on("ready", resolve);
       this.proxyServer.on("error", reject);
       this.proxyServer.start();
@@ -164,14 +202,37 @@ class HocusProxus {
     })();
   }
 
+  setProxyPacFile({ proxyPac, domain, ip, port }) {
+    return this.networkSettings.setProxyPacFile({
+      proxyPac,
+      domain,
+      ip,
+      port
+    });
+  }
+
   async toggleSystemProxy(enable, { proxyPac, domain, ip, port } = {}) {
-    proxyPac = typeof proxyPac !== 'undefined' ? proxyPac : {
-      url: this.hocusProxusOptions.proxyPacFile,
-      path: this.hocusProxusOptions.proxyPacFilePath
-    };
+    proxyPac =
+      typeof proxyPac !== "undefined"
+        ? proxyPac
+        : {
+            url: this.hocusProxusOptions.proxyPacFile,
+            path: this.hocusProxusOptions.proxyPacFilePath
+          };
     domain = domain ? domain : this.hocusProxusOptions.domain;
     ip = ip ? ip : this.hocusProxusOptions.internalIp;
     port = port ? port : this.hocusProxusOptions.proxyPort;
+
+    try {
+      await this.setProxyPacFile({
+        proxyPac,
+        domain,
+        ip,
+        port
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
 
     return this.networkSettings.toggleSystemProxy({
       enable,
@@ -215,7 +276,7 @@ class HocusProxus {
       try {
         const previousRulesConfig = await this.rule.getRulesConfig();
         const newConfig = await this.rule.updateRuleConfig(config);
-        if(previousRulesConfig.domain !== newConfig.domain) {
+        if (previousRulesConfig.domain !== newConfig.domain) {
           this.hocusProxusOptions.domain = newConfig.domain;
 
           await this.networkSettings.setProxyPacFile({
@@ -245,13 +306,67 @@ class HocusProxus {
 
   printQRCode(data) {
     return new Promise((resolve, reject) => {
-      if(!data) {
-        return reject('Please provide a string for the QR Code');
+      if (!data) {
+        return reject("Please provide a string for the QR Code");
       }
 
       try {
         qrcode.generate(data, { small: true }, resolve);
-      } catch(error) {
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  openBrowser(url, options) {
+    if (!/http/.test(url)) {
+      url = "https://example.com";
+    }
+
+    return new Promise(async (resolve, reject) => {
+      const startBrowser = () =>
+        new Promise((resolve, reject) => {
+          launcher((error, launch) => {
+            if (error) {
+              return reject(error);
+            }
+
+            resolve(launch);
+          });
+        });
+
+      const launchBrowser = launch => {
+        return new Promise((resolve, reject) => {
+          launch(url, options, error => {
+            if (error) {
+              return reject(error);
+            }
+            this.logger.info(`The browser ${options.browser} has been started`);
+            resolve();
+          });
+        });
+      };
+
+      try {
+        const launch = await startBrowser();
+        let browserConfig = launch.browsers.find(browser =>
+          /browser-launcher/.test(browser.profile)
+        );
+
+        if (browserConfig) {
+          const configFile = path.resolve(
+            browserConfig.profile,
+            "..",
+            "config.json"
+          );
+          this.logger.info(
+            `You can add new browsers at the config file available at ${configFile}`
+          );
+        }
+
+        await launchBrowser(launch);
+        resolve();
+      } catch (error) {
         reject(error);
       }
     });
