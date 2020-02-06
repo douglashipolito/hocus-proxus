@@ -118,10 +118,11 @@ class Rule {
       try {
         const configExists = await fs.exists(rulesConfigFile);
 
-        if(!configExists) {
-          await fs.copy(path.join(__dirname, 'templates', 'config.json'), rulesConfigFile);
+        if(configExists) {
+          resolve(true)
         }
 
+        await fs.copy(path.join(__dirname, 'templates', 'config.json'), rulesConfigFile);
         const config = await fs.readJSON(rulesConfigFile);
         config.domain = serverOptions.domain;
 
