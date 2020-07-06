@@ -5,6 +5,7 @@ process.binding(
 const os = require("os");
 const co = require("co");
 const path = require("path");
+const fs = require('fs-extra');
 const { Signale } = require("signale");
 const AnyProxy = require("anyproxy");
 const _ = require("lodash");
@@ -16,6 +17,8 @@ const NetworkSettings = require("./util/network-settings");
 const exitHook = require("async-exit-hook");
 const qrcode = require("qrcode-terminal");
 const launcher = require("@httptoolkit/browser-launcher");
+const isWsl = require('is-wsl');
+const shelljs = require('shelljs');
 
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
@@ -318,6 +321,84 @@ class HocusProxus {
     });
   }
 
+  configureWSLBrowsers() {
+    return new Promise(async (resolve, reject) => {
+      const wslBrowserConfigsFilePath = path.join(process.env.HOME || process.env.HOMEPATH, '.config', 'browser-launcher', 'config.json');
+
+      try {
+        fs.accessSync(wslBrowserConfigsFilePath, fs.F_OK);
+      } catch (e) {
+        await fs.outputJson(wslBrowserConfigsFilePath, { browsers: [] }, { spaces: 2 });
+      }
+
+      let browsersConfigs;
+      try {
+        browsersConfigs = await fs.readJson(wslBrowserConfigsFilePath);
+      } catch (error) {
+        return reject(error);
+      }
+
+      if(browsersConfigs.wslSet) {
+        return resolve();
+      }
+
+      const wslWindowsUserPath = shelljs.exec('wslpath $(cmd.exe /c "echo %USERPROFILE%")', { silent: true }).stdout.trim();
+      const hostWindowsPath = shelljs.exec('cmd.exe /c "echo %HOMEDRIVE%%HOMEPATH%"', { silent: true }).stdout.trim();
+
+      try {
+        await fs.copy(path.join(__dirname, 'util', 'installed-browsers.bat'), path.join(wslWindowsUserPath, 'installed-browsers.bat'));
+      } catch(error) {
+        return reject(error);
+      }
+
+      const browsersAbsolutPaths = shelljs.exec(`cmd.exe /c "${hostWindowsPath}\\installed-browsers.bat"`, { silent: true }).stdout.trim().replace(/\r/g, '').split(/\n/);
+      const defaultConfigsHostPath = `${hostWindowsPath}\\.config\\browser-launcher`; // dont use path.sep here since we are forcing it to be windows like
+
+      const defaultConfigObject = {
+        "regex": {},
+        "profile": defaultConfigsHostPath,
+        "type": "",
+        "name": "",
+        "command": "",
+        "version": "custom"
+      }
+
+      if(browsersAbsolutPaths.length) {
+        let hasChrome = false;
+
+        browsersConfigs.browsers = [];
+
+        browsersAbsolutPaths.forEach(function(browserPath) {
+          const browserName = browserPath.split('\\').reverse()[0].replace('.exe', '');
+          this.logger.info("Browser found: ", browserPath);
+
+          const browserConfig = JSON.parse(JSON.stringify(defaultConfigObject));
+          browserConfig.profile = browserConfig.profile + '\\' + browserName;
+          browserConfig.type = browserName;
+          browserConfig.name = browserName;
+          browserConfig.command = browserPath.replace('C:\\', '/mnt/c/').replace(/\\/g, '/');
+          browsersConfigs.browsers.push(browserConfig);
+
+          if(browserConfig.name === 'chrome') {
+            hasChrome = true;
+          }
+        });
+
+        browsersConfigs.defaultBrowser = hasChrome ? 'chrome' : browsersConfigs.browsers[0].name;
+        browsersConfigs.wslSet = true;
+
+        try {
+          await fs.writeJson(wslBrowserConfigsFilePath, browsersConfigs, { spaces: 2 });
+        } catch(error) {
+          return reject(error);
+        }
+      } else {
+        this.logger.error("No Browsers have been found. Exiting...");
+        return reject();
+      }
+    });
+  }
+
   openBrowser(url, options) {
     if (!/http/.test(url)) {
       url = "https://example.com";
@@ -325,7 +406,15 @@ class HocusProxus {
 
     return new Promise(async (resolve, reject) => {
       const startBrowser = () =>
-        new Promise((resolve, reject) => {
+        new Promise(async (resolve, reject) => {
+          if(isWsl) {
+            try {
+              await this.configureWSLBrowsers();
+            } catch(error) {
+              return reject();
+            }
+          }
+
           launcher((error, launch) => {
             if (error) {
               return reject(error);
