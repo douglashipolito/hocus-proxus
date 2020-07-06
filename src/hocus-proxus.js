@@ -19,6 +19,7 @@ const qrcode = require("qrcode-terminal");
 const launcher = require("@httptoolkit/browser-launcher");
 const isWsl = require('is-wsl');
 const shelljs = require('shelljs');
+const wslBrowserConfigsFilePath = path.join(process.env.HOME || process.env.HOMEPATH, '.config', 'browser-launcher', 'config.json');
 
 class HocusProxus {
   constructor(hocusProxusOptions = {}) {
@@ -323,8 +324,6 @@ class HocusProxus {
 
   configureWSLBrowsers() {
     return new Promise(async (resolve, reject) => {
-      const wslBrowserConfigsFilePath = path.join(process.env.HOME || process.env.HOMEPATH, '.config', 'browser-launcher', 'config.json');
-
       try {
         fs.accessSync(wslBrowserConfigsFilePath, fs.F_OK);
       } catch (e) {
@@ -368,7 +367,7 @@ class HocusProxus {
 
         browsersConfigs.browsers = [];
 
-        browsersAbsolutPaths.forEach(function(browserPath) {
+        browsersAbsolutPaths.forEach(browserPath => {
           const browserName = browserPath.split('\\').reverse()[0].replace('.exe', '');
           this.logger.info("Browser found: ", browserPath);
 
@@ -389,6 +388,7 @@ class HocusProxus {
 
         try {
           await fs.writeJson(wslBrowserConfigsFilePath, browsersConfigs, { spaces: 2 });
+          resolve();
         } catch(error) {
           return reject(error);
         }
@@ -411,7 +411,7 @@ class HocusProxus {
             try {
               await this.configureWSLBrowsers();
             } catch(error) {
-              return reject();
+              return reject(error);
             }
           }
 
@@ -443,13 +443,19 @@ class HocusProxus {
         );
 
         if (browserConfig) {
-          const configFile = path.resolve(
+          const configFilePath = isWsl ? wslBrowserConfigsFilePath : path.resolve(
             browserConfig.profile,
             "..",
             "config.json"
           );
+
+          const browserConfig = await fs.readJson(configFilePath);
+          if(browserConfig.defaultBrowser) {
+            options.browser = browserConfig.defaultBrowser;
+          }
+
           this.logger.info(
-            `You can add new browsers at the config file available at ${configFile}`
+            `You can add new browsers at the config file available at ${configFilePath}`
           );
         }
 
