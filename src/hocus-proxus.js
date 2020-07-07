@@ -59,6 +59,7 @@ class HocusProxus {
       proxyPort: 8001,
       webInterfacePort,
       domain: "example.com",
+      url: "https://example.com",
       useBrowser: true,
       browserConfigs: {
         browser: "chrome",
@@ -135,7 +136,7 @@ class HocusProxus {
             port: this.hocusProxusOptions.proxyPort
           });
           await this.openBrowser(
-            this.hocusProxusOptions.domain,
+            this.hocusProxusOptions.url,
             this.hocusProxusOptions.browserConfigs
           );
         }
@@ -400,10 +401,6 @@ class HocusProxus {
   }
 
   openBrowser(url, options) {
-    if (!/http/.test(url)) {
-      url = "https://example.com";
-    }
-
     return new Promise(async (resolve, reject) => {
       const startBrowser = () =>
         new Promise(async (resolve, reject) => {
