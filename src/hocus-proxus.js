@@ -188,7 +188,7 @@ class HocusProxus {
           enable: true,
           webPort: this.hocusProxusOptions.webInterfacePort
         },
-        forceProxyHttps: true,
+        forceProxyHttps: false,
         silent: !this.hocusProxusOptions.debug
       };
 

@@ -6,6 +6,19 @@ module.exports = async function(serverOptions, ruleInstance) {
     async preprocessors() {
       return await ruleInstance.processRules({ serverOptions, type: "preprocessors" });
     },
+    async beforeDealHttpsRequest(requestDetail) {
+      const shouldConsiderHTTPS = await ruleInstance.processRules({
+        serverOptions,
+        type: "beforeDealHttpsRequest",
+        requestDetail
+      });;
+
+      if(!shouldConsiderHTTPS || typeof shouldConsiderHTTPS.data === 'undefined') {
+        return true;
+      }
+
+      return shouldConsiderHTTPS.data;
+    },
     async beforeSendRequest(requestDetail) {
       return await ruleInstance.processRules({
         serverOptions,

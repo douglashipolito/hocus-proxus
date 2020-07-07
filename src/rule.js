@@ -9,6 +9,7 @@ class Rule {
     this.serverOptions = serverOptions;
     this.server = server;
     this.beforeSendRequest = [];
+    this.beforeDealHttpsRequest = [];
     this.beforeSendResponse = [];
     this.preprocessors = [];
   }
@@ -199,6 +200,10 @@ class Rule {
           this.preprocessors.push(rule.preprocessors);
         }
 
+        if (rule.beforeDealHttpsRequest) {
+          this.beforeDealHttpsRequest.push(rule.beforeDealHttpsRequest);
+        }
+
         if (rule.beforeSendRequest) {
           this.beforeSendRequest.push(rule.beforeSendRequest);
         }
@@ -222,7 +227,8 @@ class Rule {
       const types = {
         preprocessors: this.preprocessors,
         beforeSendRequest: this.beforeSendRequest,
-        beforeSendResponse: this.beforeSendResponse
+        beforeSendResponse: this.beforeSendResponse,
+        beforeDealHttpsRequest: this.beforeDealHttpsRequest
       };
       let globalResponse = {};
       let foundRules = [];
@@ -242,8 +248,14 @@ class Rule {
             );
           }
 
-          const nonRules = types[type].filter(rule => !rule.global);
-          for await (const rule of nonRules) {
+          const nonGlobalRules = types[type].filter(rule => !rule.global);
+
+          for await (const rule of nonGlobalRules) {
+            if(typeof rule === 'function') {
+              foundRules.push(rule);
+              continue;
+            }
+
             const shouldResolve = await rule.shouldResolve({
               server: this.server,
               requestDetail,
@@ -269,12 +281,17 @@ class Rule {
             let ruleData = {};
 
             try {
-              ruleData = await rule.resolve({
+              const resolver = typeof rule === 'function' ? rule : rule.resolve;
+              ruleData = await resolver({
                 server: this.server,
                 serverOptions,
                 requestDetail,
                 responseDetail
               });
+
+              if(typeof ruleData !== 'object') {
+                ruleData = { data: ruleData };
+              }
             } catch (error) {
               throw new Error(error);
             }
