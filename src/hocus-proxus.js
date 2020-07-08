@@ -435,13 +435,13 @@ class HocusProxus {
 
       try {
         const launch = await startBrowser();
-        let browserConfig = launch.browsers.find(browser =>
+        let browserLauncherConfig = launch.browsers.find(browser =>
           /browser-launcher/.test(browser.profile)
         );
 
-        if (browserConfig) {
+        if (browserLauncherConfig) {
           const configFilePath = isWsl ? wslBrowserConfigsFilePath : path.resolve(
-            browserConfig.profile,
+            browserLauncherConfig.profile,
             "..",
             "config.json"
           );
