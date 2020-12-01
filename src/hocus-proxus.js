@@ -47,7 +47,7 @@ class HocusProxus {
     const rulesPath =
       hocusProxusOptions.rulesPath || path.join(hocusProxusUserPath, "rules");
     const webInterfacePort = 8002;
-    const proxyPacRoute = `http://${internalIp}:${webInterfacePort}/proxy.pac`;
+    const proxyPacRoute = `http://localhost:${webInterfacePort}/proxy.pac`;
 
     this.isServerRunning = true;
     this.isProxyEnabled = true;
