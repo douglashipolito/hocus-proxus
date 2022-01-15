@@ -43,7 +43,7 @@
     "lan-settings": "git+https://github.com/douglashipolito/lan-settings.git",
     "lodash": "^4.17.15",
     "qrcode-terminal": "^0.12.0",
-    "shelljs": "^0.8.4",
+    "shelljs": "^0.8.5",
     "signale": "^1.4.0",
     "thunkify": "^2.1.2",
     "uglify-js": "^2.6.0"
