@@ -30,7 +30,7 @@
     "javascript"
   ],
   "dependencies": {
-    "@httptoolkit/browser-launcher": "^1.6.0",
+    "@httptoolkit/browser-launcher": "^2.0.2",
     "anyproxy": "^4.1.0",
     "async-exit-hook": "^2.0.1",
     "co": "^4.6.0",
